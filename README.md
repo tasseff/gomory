@@ -1,0 +1,2 @@
+# gomory
+Integer programming project
