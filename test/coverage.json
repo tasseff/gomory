@@ -1,4 +1,5 @@
 { "parameters": {
+		"model": "test.lp",
 		"epsilon": 1e-08
 	}
 }
