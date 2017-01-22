@@ -1,0 +1,23 @@
+IF(CMAKE_COMPILER_IS_GNUCXX)
+	IF(NOT(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "Coverage"))
+		SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Ofast -fopenmp -Wall")
+		IF("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+			SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -fPIC")
+			SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fPIC")
+		ENDIF()
+	ELSE()
+		INCLUDE(CodeCoverage)
+		setup_target_for_coverage(${PROJECT_NAME}_coverage gomory coverage "../test/coverage.json")
+		SET(CMAKE_CXX_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage -std=c++11")
+		SET(CMAKE_C_FLAGS "-g -O0 -fprofile-arcs -ftest-coverage")
+	ENDIF()
+ENDIF()
+
+IF(WIN32)
+	ADD_DEFINITIONS(-DUNICODE -D_UNICODE)
+	SET(TARGET_ARCHITECTURE "x86")
+ENDIF()
+
+INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}")
+
+ADD_SUBDIRECTORY(common)
