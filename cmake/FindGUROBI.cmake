@@ -9,7 +9,7 @@
 #  GUROBI_INCLUDE_DIRS - The Gurobi include directories
 #  GUROBI_LIBRARIES - The libraries needed to use Gurobi
 
-set (GUROBI_ENABLE OFF CACHE BOOL "Enable gurobi?")
+set (GUROBI_ENABLE ON CACHE BOOL "Enable gurobi?")
 
 if ( GUROBI_ENABLE )
 set (GUROBI_BASE "c:" CACHE PATH "Base path of your gurobi installation")
