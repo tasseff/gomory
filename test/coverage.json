@@ -1,5 +1,9 @@
 { "parameters": {
 		"model": "test.lp",
-		"epsilon": 1e-08
+		"epsilon": 1e-08,
+		"gurobiPresolve": false,
+		"gurobiCuts": false,
+		"gurobiBB": false,
+		"gurobiHeuristics": false
 	}
 }

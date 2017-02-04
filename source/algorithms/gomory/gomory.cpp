@@ -8,7 +8,18 @@
 
 Gomory::Gomory(const rapidjson::Value& root) {
 	std::string model_path = root["model"].GetString();
+
 	env = new GRBEnv();
+
+	if (root["gurobiPresolve"].GetBool() == false)
+		env->set(GRB_IntParam_Presolve, 0);
+	if (root["gurobiCuts"].GetBool() == false)
+		env->set(GRB_IntParam_Cuts, 0);
+	if (root["gurobiBB"].GetBool() == false)
+		env->set(GRB_DoubleParam_NodeLimit, 1.0);
+	if (root["gurobiHeuristics"].GetBool() == false)
+		env->set(GRB_DoubleParam_Heuristics, 0.0);
+
 	model = new GRBModel(*env, model_path);
 }
 
