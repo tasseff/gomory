@@ -11,6 +11,7 @@ public:
 	void Run(void);
 
 private:
+	double epsilon;
 	GRBEnv* env;
 	GRBModel* model;
 };
