@@ -49,7 +49,10 @@ void Gomory::Run(void) {
 
 	// Initialize an ordered set to keep track of fractional variables.
 	std::unordered_set<unsigned int> frac_var_ids;
+	std::unordered_set<unsigned int> basis_ids;
 	std::unordered_set<unsigned int>::iterator it;
+
+	GRBsvec* x;
 
 	// While there are variables with fractional values, perform the algorithm.
 	while (true) {
@@ -66,11 +69,24 @@ void Gomory::Run(void) {
 			} else {
 				frac_var_ids.erase(*it); // Is this valid if the value isn't in the set?
 			}
+
+			// Keep track of the basic indices.
+			if (vars[*it].get(GRB_IntAttr_VBasis) == 0) {
+				basis_ids.insert(*it);
+			} else {
+				basis_ids.erase(*it);
+			}
 		}
 
-		// Remove this when the algorithm is finished...
-		// e.g., if (frac_var_ids.size() == 0)
-		break;
+		break; // Temporary since the above isn't finished.
+
+		// If there are no fractional variables, exit the algorithm.
+		if (frac_var_ids.size() == 0) {
+			break;
+		}
+
+		// Choose a fractional variable and add the associated constraint.
+		//model.addConstr(x + y <= 2.0, "c1")
 	}
 
 	int optimstatus = model->get(GRB_IntAttr_Status);
