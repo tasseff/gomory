@@ -7,6 +7,7 @@
 #include <common/document.h>
 #include <common/error.h>
 #include <common/file.h>
+#include <Eigen/Dense>
 #include "gomory.h"
 
 Gomory::Gomory(const rapidjson::Value& root) {
@@ -77,6 +78,25 @@ void Gomory::Run(void) {
 				basis_ids.erase(*it);
 			}
 		}
+    // I need to form the A matrix of the basis
+    Eigen::MatrixXd A_beta;
+    std::vector<double> coeff_vec;
+    int rows = 0;
+    for(auto var_index : basis_ids) {
+      GRBVar var = model->getVar(var_index);
+      GRBColumn col = model->getCol(var);
+      rows = col.size();
+      for (int i = 0; i < rows; ++i) {
+        coeff_vec.push_back(col.getCoeff(i));
+        //A_beta(i, var_index) = coeff;
+      }
+    }
+    int cols = basis_ids.size();
+    // map the vector to a matrix which is the most efficient way to do this
+    A_beta = Eigen::MatrixXd::Map(&coeff_vec[0], rows, cols);
+    // get the inverse of the basis matrix
+    Eigen::MatrixXd A_beta_inverse = A_beta.inverse();
+
 
 		break; // Temporary since the above isn't finished.
 
