@@ -53,7 +53,9 @@ void Gomory::Run(void) {
 	std::unordered_set<unsigned int> basis_ids;
 	std::unordered_set<unsigned int>::iterator it;
 
-	GRBsvec* x;
+	// The size of the basis will remain constant throughout.
+	unsigned int basis_size = model->get(GRB_IntAttr_NumVars);
+	Eigen::MatrixXd basis_matrix(basis_size, basis_size);
 
 	// While there are variables with fractional values, perform the algorithm.
 	while (true) {
@@ -70,40 +72,36 @@ void Gomory::Run(void) {
 			} else {
 				frac_var_ids.erase(*it); // Is this valid if the value isn't in the set?
 			}
+		}
 
-			// Keep track of the basic indices.
-			if (vars[*it].get(GRB_IntAttr_VBasis) == 0) {
-				basis_ids.insert(*it);
+		// Update the basis matrix.
+		unsigned int basis_count = 0;
+		GRBConstr* constrs = model->getConstrs();
+		for (unsigned int i = 0; i < model->get(GRB_IntAttr_NumConstrs); i++) {
+			if (basis_count < basis_size) {
+				if (constrs[i].get(GRB_IntAttr_CBasis) == -1) {
+					for (unsigned int j = 0; j < basis_size; j++) {
+						basis_matrix(j, basis_count) = model->getCoeff(constrs[i], vars[j]);
+					}
+
+					basis_count++;
+				}
 			} else {
-				basis_ids.erase(*it);
+				break;
 			}
 		}
-    // I need to form the A matrix of the basis
-    Eigen::MatrixXd A_beta;
-    std::vector<double> coeff_vec;
-    int rows = 0;
-    for(auto var_index : basis_ids) {
-      GRBVar var = model->getVar(var_index);
-      GRBColumn col = model->getCol(var);
-      rows = col.size();
-      for (int i = 0; i < rows; ++i) {
-        coeff_vec.push_back(col.getCoeff(i));
-        //A_beta(i, var_index) = coeff;
-      }
-    }
-    int cols = basis_ids.size();
-    // map the vector to a matrix which is the most efficient way to do this
-    A_beta = Eigen::MatrixXd::Map(&coeff_vec[0], rows, cols);
-    // get the inverse of the basis matrix
-    Eigen::MatrixXd A_beta_inverse = A_beta.inverse();
 
+		break;
 
-		break; // Temporary since the above isn't finished.
+		//// If there are no fractional variables, exit the algorithm.
+		//if (frac_var_ids.size() == 0) {
+		//	break;
+		//} else {
+		//	unsigned int change_id = frac_var_ids[0];
+		//	std::cout << change_id << std::endl;
+		//}
 
-		// If there are no fractional variables, exit the algorithm.
-		if (frac_var_ids.size() == 0) {
-			break;
-		}
+		//break; // Temporary since the above isn't finished.
 
 		// Choose a fractional variable and add the associated constraint.
 		//model.addConstr(x + y <= 2.0, "c1")
