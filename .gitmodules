@@ -3,4 +3,4 @@
 	url = git@github.com:miloyip/rapidjson.git
 [submodule "libraries/eigen"]
 	path = libraries/eigen
-	url = https://github.com/RLovelett/eigen.git
+	url = git@github.com:RLovelett/eigen.git

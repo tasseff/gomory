@@ -1,6 +1,6 @@
 # gomory
 
-## Installation
+## Compilation
 
 To retrieve dependencies included as submodules (e.g., rapidjson), run:
 
