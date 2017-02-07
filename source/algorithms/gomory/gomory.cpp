@@ -41,7 +41,7 @@ void Gomory::Run(void) {
 	GRBVar* vars = model->getVars();
 
 	std::unordered_set<unsigned int> int_vars;
-	for (int j = 0; j < model->get(GRB_IntAttr_NumVars); j++) {
+	for (unsigned int j = 0; j < model->get(GRB_IntAttr_NumVars); j++) {
 		if (vars[j].get(GRB_CharAttr_VType) != GRB_CONTINUOUS) {
 			vars[j].set(GRB_CharAttr_VType, GRB_CONTINUOUS);
 			int_var_ids.insert(j);
@@ -55,8 +55,14 @@ void Gomory::Run(void) {
 
 	// The size of the basis will remain constant throughout.
 	unsigned int basis_size = model->get(GRB_IntAttr_NumVars);
-	Eigen::MatrixXd basis_matrix(basis_size, basis_size);
+	// declare matricies and vectors with constant size
+  Eigen::MatrixXd basis_matrix(basis_size, basis_size);
+  Eigen::MatrixXd inverse_basis_matrix(basis_size, basis_size);
+  Eigen::VectorXd r(basis_size);
+  Eigen::VectorXd c_beta(basis_size);
+  Eigen::VectorXd a_beta_r(basis_size);
 
+  int num_cuts = 0;
 	// While there are variables with fractional values, perform the algorithm.
 	while (true) {
 		// Write the algorithm here...
@@ -65,7 +71,6 @@ void Gomory::Run(void) {
 		// Update the list of fractional variables.
 		for (it = int_var_ids.begin(); it != int_var_ids.end(); ++it) {
 			double tmp = vars[*it].get(GRB_DoubleAttr_X);
-
 			// Add the variable to the set if it's fractional.
 			if (fabs(tmp - floor(tmp + 0.5)) > epsilon) {
 				frac_var_ids.insert(*it); // TODO: Change to emplace when using gcc >= 4.8.
@@ -83,7 +88,7 @@ void Gomory::Run(void) {
 					for (unsigned int j = 0; j < basis_size; j++) {
 						basis_matrix(j, basis_count) = model->getCoeff(constrs[i], vars[j]);
 					}
-
+          c_beta(basis_count) = constrs[i].get(GRB_DoubleAttr_RHS);
 					basis_count++;
 				}
 			} else {
@@ -91,20 +96,45 @@ void Gomory::Run(void) {
 			}
 		}
 
-		break;
-
 		//// If there are no fractional variables, exit the algorithm.
-		//if (frac_var_ids.size() == 0) {
-		//	break;
-		//} else {
-		//	unsigned int change_id = frac_var_ids[0];
-		//	std::cout << change_id << std::endl;
-		//}
-
-		//break; // Temporary since the above isn't finished.
+		if (frac_var_ids.size() == 0) {
+			break;
+		}
 
 		// Choose a fractional variable and add the associated constraint.
-		//model.addConstr(x + y <= 2.0, "c1")
+
+    // unsure how to choose the variable so picking first in the list atm
+    unsigned int cut_var_index = *(frac_var_ids.begin());
+
+    GRBVar y_i = model->getVar(cut_var_index);
+
+    // get A_beta_inverse
+    inverse_basis_matrix = basis_matrix.inverse();
+
+    // put a one in the correct position of e_i, will remove at end of iteration
+    for(int i = 0; i < basis_size; ++i) {
+      r(i) = -floor(inverse_basis_matrix(i,cut_var_index));
+    }
+
+    // get constants ready for cut
+    double c_beta_r = c_beta.transpose()*r;
+    double y_bar_i_fl = floor(model->getVar(cut_var_index).get(GRB_DoubleAttr_X));
+
+    // create linear expression with the variables
+    a_beta_r = basis_matrix * r;
+
+    GRBLinExpr exp;
+    for (unsigned int j = 0; j < model->get(GRB_IntAttr_NumVars); j++) {
+      exp += a_beta_r[j] * vars[j];
+    }
+
+    // generate the name for the cut
+    std::string constr_name = "c" + std::to_string(num_cuts);
+		// add the cut -- not sure why this is incorrect syntax.
+    model->addConstr(y_i <= y_bar_i_fl + c_beta_r - exp, constr_name);
+
+    // update count of cuts made
+    ++num_cuts;
 	}
 
 	int optimstatus = model->get(GRB_IntAttr_Status);
@@ -120,6 +150,7 @@ void Gomory::Run(void) {
 	} else {
 		std::cout << "Optimization was stopped with status = " << optimstatus << std::endl;
 	}
+  std::cout << "Number of cuts added: " << num_cuts << std::endl;
 }
 
 int main(int argc, char* argv[]) {
