@@ -2,7 +2,7 @@
 
 #include <memory>
 #include <common/document.h>
-#include <gurobi_c.h>
+#include <gurobi_c++.h>
 
 class Gomory {
 public:
@@ -12,6 +12,6 @@ public:
 
 private:
 	double epsilon;
-	GRBenv* env;
-	GRBmodel* model;
+	GRBEnv* env;
+	GRBModel* model;
 };
