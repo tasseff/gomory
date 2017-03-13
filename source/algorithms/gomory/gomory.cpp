@@ -118,20 +118,44 @@ void Gomory::Run(void) {
 
     // get constants ready for cut
     double c_beta_r = c_beta.transpose()*r;
-    double y_bar_i_fl = floor(model->getVar(cut_var_index).get(GRB_DoubleAttr_X));
+    double y_bar_i = model->getVar(cut_var_index).get(GRB_DoubleAttr_X);
+    double y_bar_i_fl = floor(y_bar_i);
 
     // create linear expression with the variables
     a_beta_r = basis_matrix * r;
 
-    GRBLinExpr exp;
+    GRBLinExpr y_bar_abeta_r;
     for (unsigned int j = 0; j < model->get(GRB_IntAttr_NumVars); j++) {
-      exp += a_beta_r[j] * vars[j];
+      y_bar_abeta_r += a_beta_r[j] * vars[j];
     }
 
     // generate the name for the cut
     std::string constr_name = "c" + std::to_string(num_cuts);
-		// add the cut -- not sure why this is incorrect syntax.
-    model->addConstr(y_i <= y_bar_i_fl + c_beta_r - exp, constr_name);
+
+
+    /***********************************************************
+     *************** Generate info for mixed cut ***************
+     ***********************************************************/
+
+    // z = sum i not equal to j a_j *r * y_j
+    GRBLinExpr z_expr;
+    z_expr = y_bar_abeta_r - (a_beta_r[cut_var_index])*vars[cut_var_index];
+
+    // this is how you would construct z from scratch
+    /*for(unsigned int j = 0; j < model->(GRB_INT_ATTR_NUMVARS); j++) {
+      if(j != cut_var_index) {
+        z_expr += a_beta_r[j] * vars[j];
+      }
+    }*/
+    GRBLinExpr alpha_r_i = a_beta_r[cut_var_index];
+
+
+    // add the pure cut
+    //model->addConstr(y_i <= y_bar_i_fl + c_beta_r - y_bar_abeta_r, constr_name);
+
+    // add the mixed cut
+    model->addConstr(((1 + alpha_r_i) - (y_bar_i - y_bar_i_fl))* y_i + z_expr <=
+     y_bar_abeta_r - (y_bar_i - y_bar_i_fl - 1)* y_bar_i_fl, constr_name);
 
     // update count of cuts made
     ++num_cuts;
