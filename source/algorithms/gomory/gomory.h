@@ -2,7 +2,10 @@
 
 #include <memory>
 #include <common/document.h>
-#include <gurobi_c++.h>
+
+extern "C" {
+	#include <gurobi_c.h>
+}
 
 class Gomory {
 public:
@@ -11,7 +14,10 @@ public:
 	void Run(void);
 
 private:
+	int num_vars, num_constrs, num_int_vars, status, grb_error;
 	double epsilon;
-	GRBEnv* env;
-	GRBModel* model;
+	GRBenv* env;
+	GRBmodel* model;
+	GRBsvec* Binv_tmp;
+	GRBsvec* svec_tmp;
 };
