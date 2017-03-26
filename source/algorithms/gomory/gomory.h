@@ -11,7 +11,14 @@ public:
 	void Run(void);
 
 private:
-	double epsilon;
+  int get_random_var(const std::mt19937& rng, int size);
+  GRBVar get_most_fractional(const std::unordered_set<unsigned int>& frac_var_ids,
+    GRBVar* vars);
+  GRBVar get_least_fractional(const std::unordered_set<unsigned int>& frac_var_ids,
+    GRBVar* vars);
+
+  double epsilon;
 	GRBEnv* env;
 	GRBModel* model;
+
 };

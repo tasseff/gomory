@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <random>
 #include <unordered_set>
 #include <common/document.h>
 #include <common/error.h>
@@ -34,6 +35,8 @@ Gomory::~Gomory(void) {
 }
 
 void Gomory::Run(void) {
+  std::random_device rd;     // only used once to initialise (seed) engine
+  std::mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
 	// Keep track of the variables that were originally integer.
 	std::unordered_set<unsigned int> int_var_ids;
 
@@ -105,7 +108,6 @@ void Gomory::Run(void) {
 
     // unsure how to choose the variable so picking first in the list atm
     unsigned int cut_var_index = *(frac_var_ids.begin());
-
     GRBVar y_i = model->getVar(cut_var_index);
 
     // get A_beta_inverse
@@ -175,6 +177,44 @@ void Gomory::Run(void) {
 		std::cout << "Optimization was stopped with status = " << optimstatus << std::endl;
 	}
   std::cout << "Number of cuts added: " << num_cuts << std::endl;
+}
+
+
+int Gomory::get_random_var(const std::mt19937& rng, int size) {
+  std::uniform_int_distribution<int> uni(0,size-1); // guaranteed unbiased
+  return uni(rng);
+}
+
+GRBVar Gomory::get_least_fractional(
+  const std::unordered_set<unsigned int>& frac_var_ids, GRBVar* vars) {
+  double least_diff;
+  GRBVar least_var;
+  for(auto const &i : frac_var_ids) {
+    GRBVar var = vars[i];
+    double value = var.get(GRB_DoubleAttr_X);
+    int closest_int = std::round(value);
+    double diff = std::abs(closest_int - value);
+    if(diff < least_diff) {
+      least_var = var;
+    }
+  }
+  return least_var;
+}
+
+GRBVar Gomory::get_most_fractional(
+  const std::unordered_set<unsigned int>& frac_var_ids, GRBVar* vars) {
+  double most_diff;
+  GRBVar most_var;
+  for(auto const &i : frac_var_ids) {
+    GRBVar var = vars[i];
+    double value = var.get(GRB_DoubleAttr_X);
+    int closest_int = std::round(value);
+    double diff = std::abs(closest_int - value);
+    if(diff < most_diff) {
+      most_var = var;
+    }
+  }
+  return most_var;
 }
 
 int main(int argc, char* argv[]) {
