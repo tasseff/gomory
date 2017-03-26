@@ -184,8 +184,8 @@ void Gomory::Run(void) {
 		}
 		// Get the basis inverse.
 		Binv = B.inverse();
-		//num_cuts += AddPureCut(cut_var_index);
-		num_cuts += AddMixedCut(cut_var_index);
+		num_cuts += AddPureCut(cut_var_index);
+		//num_cuts += AddMixedCut(cut_var_index);
 	}
 
 	int optimstatus;

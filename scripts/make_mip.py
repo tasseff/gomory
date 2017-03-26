@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
-"""make_mip.py: Generate random feasible pure and mixed-integer programs."""
+"""make_mip.py: Generate random feasible mixed-integer programs."""
 
 import argparse
+import gurobipy as grb
+import numpy as np
+import os
+import random
+import sys
 
 __author__ = "Byron Tasseff"
 __credits__ = ["Byron Tasseff"]
@@ -12,19 +17,60 @@ __maintainer__ = "Byron Tasseff"
 __email__ = "byron@tasseff.com"
 __status__ = "Development"
 
-#def make_mip(num_constraints, num_variables, pure, output_path):
+def make_mip(num_constraints, num_variables, pure, output_path):
+    # Create a feasible problem with constraints A' y <= c.
+    # Start by creating a feasible "dual" (i.e., a standard-form primal).
+    A = np.random.randint(-100, 100, size = (num_variables, num_constraints))
+    x = np.random.rand(num_constraints, 1)
+    b = np.matmul(A, x)
+    c = np.random.randint(0, 10000, size = (num_constraints, 1))
+    A_T = A.transpose()
+
+    model = grb.Model(os.path.basename(output_path))
+    model.setParam('OutputFlag', False)
+
+    # Set the possible variable types.
+    var_types = [grb.GRB.INTEGER]
+    if not pure:
+       var_types.append(grb.GRB.CONTINUOUS)
+
+    var_list = []
+    for j in range(0, num_variables):
+        var_type = random.choice(var_types)
+        var = model.addVar(obj = b[j], vtype = var_type)
+        var_list.append(var)
+
+    model.update()
+
+    for i in range(0, num_constraints):
+        lhs = grb.LinExpr()
+        for j, var in enumerate(var_list):
+            lhs += A_T[i, j] * var
+        model.addConstr(lhs, grb.GRB.LESS_EQUAL, c[i])
+
+    model.update()
+    model.optimize()
+    status = model.Status
+
+    if status != grb.GRB.OPTIMAL:
+        print('Generated problem is infeasible.')
+        sys.exit(1)
+
+    model.write(output_path)
 
 def make_mips(num_problems, num_constraints, num_variables, pure, output_path):
     if num_problems == 1:
-        print(num_problems, num_constraints, num_variables, pure, output_path)
-        #make_mip(num_constraints, num_variables, output_path)
+        make_mip(num_constraints, num_variables, pure, output_path)
     else:
-        print(num_problems, num_constraints, num_variables, pure, output_path)
-        #for i in range(0, num_problems):
-        #    output_file_path = os.path.join(output_path,
+        for i in range(0, num_problems):
+            basename = ('ip' if pure else 'mip') + '-' + str(i) + '.mps'
+            output_path_ = os.path.join(output_path, basename)
+            num_variables_ = random.randint(1, num_variables)
+            num_constraints_ = random.randint(1, num_constraints)
+            make_mip(num_constraints_, num_variables_, pure, output_path_)
 
 if __name__ == "__main__":
-    description = 'Generate random feasible pure and mixed-integer programs.'
+    description = 'Generate random feasible mixed-integer programs.'
     parser = argparse.ArgumentParser(description = description)
 
     parser.add_argument('output_path', type = str, nargs = 1,
