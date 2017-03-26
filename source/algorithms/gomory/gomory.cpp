@@ -58,37 +58,27 @@ unsigned int Gomory::AddPureCut(int cut_var_index) {
 }
 
 unsigned int Gomory::AddMixedCut(int cut_var_index) {
-	// Compute r.
 	for (unsigned int i = 0; i < basis_size; i++) {
-		r(i) = -floor(Binv(i, cut_var_index));
+		r(i) = fmax(0.0, -floor(Binv(i, cut_var_index)));
 	}
-	
-	// Compute constants for the cut.
+
 	double c_beta_r = c_beta.transpose() * r;
 	a_beta_r = B * r;
 
 	double y_bar_i;
 	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
 
-	double rhs = 0.0;
 	for (unsigned int i = 0; i < num_vars; i++) {
-		if (i != cut_var_index) {
-			// Coefficients for variables that are not the cutting variables.
-			double y_bar_tmp;
-			grb_error = GRBgetdblattrelement(model, "X", i, &y_bar_tmp);
-			rhs += y_bar_tmp * a_beta_r(i);
-			cval[i] = a_beta_r(i);
-		} else {
-			// Coefficient for cutting variable.
-			cval[i] = (1.0 + a_beta_r(i)) - (y_bar_i - floor(y_bar_i));
+		cval[i] = a_beta_r(i);
+		if (i == cut_var_index) {
+			cval[i] -= (y_bar_i - floor(y_bar_i) - 1.0);
 		}
 	}
 
-	rhs -= (y_bar_i - floor(y_bar_i) - 1.0) * floor(y_bar_i);
-	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
+	double rhs = (y_bar_i - floor(y_bar_i) - 1.0) * floor(y_bar_i) - c_beta_r;
+	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, -rhs, NULL);
 
-	// Return number of cuts generated.
-	return 1;
+	return 1; // Return the number of cuts generated.
 }
 
 Gomory::~Gomory(void) {
@@ -99,8 +89,8 @@ Gomory::~Gomory(void) {
 void Gomory::Run(void) {
 	// Keep track of the variables that were originally integer.
 	grb_error = GRBgetintattr(model, "NumIntVars", &num_int_vars);
-	int* int_var_ids = (int*)malloc(num_int_vars*sizeof(int));  // new int[num_int_vars];
-	double* int_var_vals = (double*)malloc(num_int_vars*sizeof(double)); //new double[num_int_vars];
+	int* int_var_ids = (int*)malloc(num_int_vars*sizeof(int));
+	double* int_var_vals = (double*)malloc(num_int_vars*sizeof(double));
 
 	// Keep track of integer variables that are fractional in the relaxation.
 	std::unordered_set<unsigned int> frac_var_ids;
@@ -189,6 +179,7 @@ void Gomory::Run(void) {
 		Binv = B.inverse();
 		//num_cuts += AddPureCut(cut_var_index);
 		num_cuts += AddMixedCut(cut_var_index);
+		std::cout << num_cuts << std::endl;
 	}
 
 	int optimstatus;
