@@ -32,13 +32,66 @@ Gomory::Gomory(const rapidjson::Value& root) {
 	grb_error = GRBreadmodel(env, model_path.c_str(), &model);
 }
 
+unsigned int Gomory::AddPureCut(int cut_var_index) {
+	// Compute r.
+	for (unsigned int i = 0; i < basis_size; i++) {
+		r(i) = -floor(Binv(i, cut_var_index));
+	}
+	
+	// Compute constants for the cut.
+	double c_beta_r = c_beta.transpose() * r;
+	a_beta_r = B * r;
+
+	for (unsigned int i = 0; i < num_vars; i++) {
+		cval[i] = a_beta_r(i);
+	}
+
+	cval[cut_var_index] += 1.0;
+
+	double y_bar_i;
+	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
+	double rhs = c_beta_r + floor(y_bar_i);
+	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
+
+	// Return number of cuts generated.
+	return 1;
+}
+
+unsigned int Gomory::AddMixedCut(int cut_var_index) {
+	// Compute r.
+	for (unsigned int i = 0; i < basis_size; i++) {
+		r(i) = -floor(Binv(i, cut_var_index));
+	}
+	
+	// Compute constants for the cut.
+	double c_beta_r = c_beta.transpose() * r;
+	a_beta_r = B * r;
+
+	double y_bar_i;
+	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
+
+	double rhs = 0.0;
+	for (unsigned int i = 0; i < num_vars; i++) {
+		if (i != cut_var_index) {
+			// Coefficients for variables that are not the cutting variables.
+			double y_bar_tmp;
+			grb_error = GRBgetdblattrelement(model, "X", i, &y_bar_tmp);
+			rhs += y_bar_tmp * a_beta_r(i);
+			cval[i] = a_beta_r(i);
+		} else {
+			// Coefficient for cutting variable.
+			cval[i] = (1.0 + a_beta_r(i)) - (y_bar_i - floor(y_bar_i));
+		}
+	}
+
+	rhs -= (y_bar_i - floor(y_bar_i) - 1.0) * floor(y_bar_i);
+	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
+
+	// Return number of cuts generated.
+	return 1;
+}
+
 Gomory::~Gomory(void) {
-	free(Binv_tmp->ind);
-	free(Binv_tmp->val);
-	free(Binv_tmp);
-	free(svec_tmp->ind);
-	free(svec_tmp->val);
-	free(svec_tmp);
 	GRBfreemodel(model);
 	GRBfreeenv(env);
 }
@@ -56,47 +109,20 @@ void Gomory::Run(void) {
 	grb_error = GRBgetintattr(model, "NumVars", &num_vars);
 	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
 
-	//// Preallocate things related to the basis.
-	unsigned int basis_size = num_vars;
-	//int* basis_head = new int[basis_size];
-	//double* a_beta_r = new double[basis_size];
-
-	//// Preallocate things related to r.
-	//int* r_indices = new int[basis_size];
-	//double* r_vals = new double[basis_size];
-	//GRBsvec r = {basis_size, r_indices, r_vals};
-
-	// Preallocate things related to Binv_tmp.
-	//int* Binv_tmp_indices = new int[100*basis_size];
-	//double* Binv_tmp_vals = new double[100*basis_size];
-
-	Binv_tmp = (GRBsvec*)malloc(sizeof(GRBsvec));
-	Binv_tmp->len = basis_size;
-	Binv_tmp->ind = (int*)malloc(basis_size*sizeof(int)); //         new int[100*basis_size]; //Binv_tmp_indices;
-	Binv_tmp->val = (double*)malloc(basis_size*sizeof(double));//             new double[100*basis_size]; //Binv_tmp_vals;
-
-	svec_tmp = (GRBsvec*)malloc(sizeof(GRBsvec));
-	svec_tmp->len = 1;
-	svec_tmp->ind = (int*)malloc(1*sizeof(int)); //   new int[1]; //Binv_tmp_indices;
-	svec_tmp->val = (double*)malloc(1*sizeof(double)); //new double[1]; //Binv_tmp_vals;
-	svec_tmp->val[0] = 1.0;
-
-	//GRBsvec* Binv_tmp = new GRBsvec;
-	//Binv_tmp = {basis_size, Binv_tmp_indices, Binv_tmp_vals};
+	// Preallocate things related to the basis.
+	basis_size = num_vars;
 
 	// Variables used to construct a single new constraint.
-	int* cind = (int*)malloc(num_vars*sizeof(int)); //   new int[num_vars];
-	double* cval = (double*)malloc(num_vars*sizeof(double)); // new double[num_vars];
-	double rhs;
+	cind = (int*)malloc(num_vars*sizeof(int)); //   new int[num_vars];
+	cval = (double*)malloc(num_vars*sizeof(double)); // new double[num_vars];
 
-	Eigen::MatrixXd B(basis_size, basis_size);
-	Eigen::MatrixXd Binv(basis_size, basis_size);
-	Eigen::VectorXd r(basis_size);
-	Eigen::VectorXd c_beta(basis_size);
-	Eigen::VectorXd a_beta_r(basis_size);
+	B.resize(basis_size, basis_size);
+	Binv.resize(basis_size, basis_size);
+	r.resize(basis_size);
+	c_beta.resize(basis_size);
+	a_beta_r.resize(basis_size);
 
 	char variable_type;
-	unsigned int num_cuts = 0;
 	for (unsigned int j = 0, k = 0; j < num_vars; j++) {
 		cind[j] = j;
 
@@ -108,6 +134,7 @@ void Gomory::Run(void) {
 		}
 	}
 
+	unsigned int num_cuts = 0;
 	while (true) {
 		grb_error = GRBoptimize(model);
 		grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
@@ -130,26 +157,12 @@ void Gomory::Run(void) {
 		int cut_var_index = *frac_var_ids.begin();
 
 		// Get the basis inverse.
-		// TODO: Is there an even faster way to get the basis inverse?
-		//grb_error = GRBgetBasisHead(model, basis_head);
+		// TODO: Is there a faster way to get the basis inverse?
 		for (unsigned int j = 0; j < basis_size; j++) {
 			cval[j] = 0.0;
-			svec_tmp->ind[0] = 0;
-			grb_error = GRBBSolve(model, svec_tmp, Binv_tmp);
-			//grb_error = GRBBSolve(model, svec_tmp, Binv_tmp);
-			//std::cout << svec_tmp->ind[0] << std::endl;
-			//if (grb_error != 0)
-			//	std::cout << grb_error << std::endl;
-		//	for (unsigned int i = 0; i < basis_size; i++) {
-		//		Binv(i, j) = Binv_tmp_vals[i];
-		//	}
 		}
 
-		//grb_error = GRBoptimize(model);
-
-		std::cout << std::endl;
-
-		// Get the basis.
+		// Populate the basis matrix and c_beta.
 		grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
 		for (unsigned int i = 0, basis_count = 0; i < num_constrs; i++) {
 			if (basis_count < basis_size) {
@@ -172,31 +185,10 @@ void Gomory::Run(void) {
 			}
 		}
 
+		// Get the basis inverse.
 		Binv = B.inverse();
-
-		// put a one in the correct position of e_i, will remove at end of iteration
-		for (unsigned int i = 0; i < basis_size; i++) {
-			r(i) = -floor(Binv(i, cut_var_index));
-		}
-		
-		// get constants ready for cut
-		double c_beta_r = c_beta.transpose()*r;
-		
-		// create linear expression with the variables
-		a_beta_r = B * r;
-
-		for (unsigned int i = 0; i < num_vars; i++) {
-			cval[i] = a_beta_r(i);
-		}
-
-		cval[cut_var_index] += 1.0;
-
-		double y_bar_i;
-		grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
-		rhs = c_beta_r + floor(y_bar_i);
-		grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
-
-		num_cuts++;
+		//num_cuts += AddPureCut(cut_var_index);
+		num_cuts += AddMixedCut(cut_var_index);
 	}
 
 	int optimstatus;
