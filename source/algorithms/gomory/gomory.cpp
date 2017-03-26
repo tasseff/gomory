@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <random>
+#include <limits>
 #include <string>
 #include <unordered_set>
 #include <common/document.h>
@@ -129,7 +130,9 @@ void Gomory::Run(void) {
 
 	unsigned int num_cuts = 0;
 	while (true) {
-		grb_error = GRBoptimize(model);
+    std::cout << num_cuts << std::endl;
+
+    grb_error = GRBoptimize(model);
 		grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
 
 		for (unsigned int k = 0; k < num_int_vars; k++) {
@@ -147,8 +150,10 @@ void Gomory::Run(void) {
 		}
 
 		// Set the cutting variable index.
-		int cut_var_index = *frac_var_ids.begin();
-
+		//int cut_var_index = *frac_var_ids.begin();
+    int cut_var_index = get_most_fractional(frac_var_ids);
+    //int cut_var_index = get_least_fractional(frac_var_ids);
+    //int cut_var_index = get_random_var(frac_var_ids, rng);
 		// Get the basis inverse.
 		// TODO: Is there a faster way to get the basis inverse?
 		for (unsigned int j = 0; j < basis_size; j++) {
@@ -209,42 +214,50 @@ void Gomory::Run(void) {
 }
 
 
-int Gomory::get_random_var(std::mt19937 rng, int size) {
-  std::uniform_int_distribution<int> uni(0,size-1); // guaranteed unbiased
-  return uni(rng);
+int Gomory::get_random_var(const std::unordered_set<unsigned int>& frac_var_ids,
+  std::mt19937 rng) {
+  std::uniform_int_distribution<int> uni(0,frac_var_ids.size()-1); // guaranteed unbiased
+  int index = uni(rng);
+  auto it = frac_var_ids.begin();
+  if(index != 0) {
+    advance(it,index-1);
+  }
+  return *it;
 }
 
-/*GRBVar Gomory::get_least_fractional(
-  const std::unordered_set<unsigned int>& frac_var_ids, GRBVar* vars) {
-  double least_diff;
-  GRBVar least_var;
-  for(auto const &i : frac_var_ids) {
-    GRBVar var = vars[i];
-    double value = var.get(GRB_DoubleAttr_X);
-    int closest_int = std::round(value);
-    double diff = std::abs(closest_int - value);
-    if(diff < least_diff) {
-      least_var = var;
+int Gomory::get_least_fractional(const std::unordered_set<unsigned int>& frac_var_ids) {
+	double least_diff = std::numeric_limits<double>::max();
+  std::unordered_set<unsigned int>::const_iterator least_var_index = frac_var_ids.begin();
+  for(std::unordered_set<unsigned int>::const_iterator i = ++frac_var_ids.begin();
+      i != frac_var_ids.end(); ++i) {
+      double value;
+      grb_error = GRBgetdblattrelement(model, "X", (*i), &value);
+      int closest_int = std::round(value);
+      double diff = fabs(value - closest_int);
+      if(diff < least_diff) {
+        least_var_index = i;
+      }
     }
-  }
-  return least_var;
+    return *least_var_index;
 }
 
-GRBVar Gomory::get_most_fractional(
-  const std::unordered_set<unsigned int>& frac_var_ids, GRBVar* vars) {
-  double most_diff;
-  GRBVar most_var;
-  for(auto const &i : frac_var_ids) {
-    GRBVar var = vars[i];
-    double value = var.get(GRB_DoubleAttr_X);
+
+int Gomory::get_most_fractional(
+  const std::unordered_set<unsigned int>& frac_var_ids) {
+  double most_diff = 0;
+  std::unordered_set<unsigned int>::const_iterator most_var_index = frac_var_ids.begin();
+  for(std::unordered_set<unsigned int>::const_iterator i = ++frac_var_ids.begin();
+      i != frac_var_ids.end(); ++i) {
+    double value;
+    grb_error = GRBgetdblattrelement(model, "X", (*i), &value);
     int closest_int = std::round(value);
-    double diff = std::abs(closest_int - value);
-    if(diff < most_diff) {
-      most_var = var;
+    double diff = fabs(value - closest_int);
+    if(diff > most_diff) {
+      most_var_index = i;
     }
   }
-  return most_var;
-}*/
+  return *most_var_index;
+}
 
 int main(int argc, char* argv[]) {
 	// Check if a JSON file has been specified.
