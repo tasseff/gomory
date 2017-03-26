@@ -151,9 +151,9 @@ void Gomory::Run(void) {
 
 		// Set the cutting variable index.
 		//int cut_var_index = *frac_var_ids.begin();
-    int cut_var_index = get_most_fractional(frac_var_ids);
+    //int cut_var_index = get_most_fractional(frac_var_ids);
     //int cut_var_index = get_least_fractional(frac_var_ids);
-    //int cut_var_index = get_random_var(frac_var_ids, rng);
+    int cut_var_index = get_random_var(frac_var_ids, rng);
 		// Get the basis inverse.
 		// TODO: Is there a faster way to get the basis inverse?
 		for (unsigned int j = 0; j < basis_size; j++) {
@@ -215,7 +215,7 @@ void Gomory::Run(void) {
 
 
 int Gomory::get_random_var(const std::unordered_set<unsigned int>& frac_var_ids,
-  std::mt19937 rng) {
+  std::mt19937 &rng) {
   std::uniform_int_distribution<int> uni(0,frac_var_ids.size()-1); // guaranteed unbiased
   int index = uni(rng);
   auto it = frac_var_ids.begin();

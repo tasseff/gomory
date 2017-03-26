@@ -17,7 +17,7 @@ public:
 
 private:
 	int get_random_var(const std::unordered_set<unsigned int>& frac_var_ids,
-    std::mt19937 rng);
+    std::mt19937 &rng);
 	int get_most_fractional(const std::unordered_set<unsigned int>& frac_var_ids);
 	int get_least_fractional(const std::unordered_set<unsigned int>& frac_var_ids);
 	int num_vars, num_constrs, num_int_vars, status, grb_error;
