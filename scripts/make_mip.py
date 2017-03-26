@@ -20,10 +20,10 @@ __status__ = "Development"
 def make_mip(num_constraints, num_variables, pure, output_path):
     # Create a feasible problem with constraints A' y <= c.
     # Start by creating a feasible "dual" (i.e., a standard-form primal).
-    A = np.random.randint(-100, 100, size = (num_variables, num_constraints))
+    A = np.random.randint(-10, 10, size = (num_variables, num_constraints))
     x = np.random.rand(num_constraints, 1)
     b = np.matmul(A, x)
-    c = np.random.randint(0, 10000, size = (num_constraints, 1))
+    c = np.random.randint(0, 1000, size = (num_constraints, 1))
     A_T = A.transpose()
 
     model = grb.Model(os.path.basename(output_path))
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     if args.num_constraints:
         num_constraints = args.num_constraints[0]
 
-    num_variables = 100
+    num_variables = 10
     if args.num_variables:
         num_variables = args.num_variables[0]
 

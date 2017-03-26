@@ -1,5 +1,5 @@
 { "parameters": {
-		"model": "test.lp",
+		"model": "test.mps",
 		"epsilon": 1e-08,
 		"gurobiPresolve": false,
 		"gurobiCuts": false,
