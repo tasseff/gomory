@@ -179,7 +179,6 @@ void Gomory::Run(void) {
 		Binv = B.inverse();
 		//num_cuts += AddPureCut(cut_var_index);
 		num_cuts += AddMixedCut(cut_var_index);
-		std::cout << num_cuts << std::endl;
 	}
 
 	int optimstatus;
