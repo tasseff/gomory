@@ -46,8 +46,8 @@ Gomory::~Gomory(void) {
 void Gomory::Run(void) {
 	// Keep track of the variables that were originally integer.
 	grb_error = GRBgetintattr(model, "NumIntVars", &num_int_vars);
-	int* int_var_ids = new int[num_int_vars];
-	double* int_var_vals = new double[num_int_vars];
+	int* int_var_ids = (int*)malloc(num_int_vars*sizeof(int));  // new int[num_int_vars];
+	double* int_var_vals = (double*)malloc(num_int_vars*sizeof(double)); //new double[num_int_vars];
 
 	// Keep track of integer variables that are fractional in the relaxation.
 	std::unordered_set<unsigned int> frac_var_ids;
@@ -58,7 +58,7 @@ void Gomory::Run(void) {
 
 	//// Preallocate things related to the basis.
 	unsigned int basis_size = num_vars;
-	int* basis_head = new int[basis_size];
+	//int* basis_head = new int[basis_size];
 	//double* a_beta_r = new double[basis_size];
 
 	//// Preallocate things related to r.
@@ -85,16 +85,9 @@ void Gomory::Run(void) {
 	//Binv_tmp = {basis_size, Binv_tmp_indices, Binv_tmp_vals};
 
 	// Variables used to construct a single new constraint.
-	int* cind = new int[num_vars];
-	double* cval = new double[num_vars];
+	int* cind = (int*)malloc(num_vars*sizeof(int)); //   new int[num_vars];
+	double* cval = (double*)malloc(num_vars*sizeof(double)); // new double[num_vars];
 	double rhs;
-
-	// Preallocate the svec used to obtain a portion of the basis.
-	//int* svec_tmp_ids = new int[1];
-	//double* svec_tmp_vals = new double[1];
-	//svec_tmp_vals[0] = 1.0;
-
-	//GRBsvec svec_tmp = {1, svec_tmp_ids, svec_tmp_vals};
 
 	Eigen::MatrixXd B(basis_size, basis_size);
 	Eigen::MatrixXd Binv(basis_size, basis_size);
@@ -138,11 +131,11 @@ void Gomory::Run(void) {
 
 		// Get the basis inverse.
 		// TODO: Is there an even faster way to get the basis inverse?
-		grb_error = GRBgetBasisHead(model, basis_head);
+		//grb_error = GRBgetBasisHead(model, basis_head);
 		for (unsigned int j = 0; j < basis_size; j++) {
 			cval[j] = 0.0;
-			//svec_tmp->ind[0] = j;
-			//grb_error = GRBBSolve(model, svec_tmp, Binv_tmp);
+			svec_tmp->ind[0] = 0;
+			grb_error = GRBBSolve(model, svec_tmp, Binv_tmp);
 			//grb_error = GRBBSolve(model, svec_tmp, Binv_tmp);
 			//std::cout << svec_tmp->ind[0] << std::endl;
 			//if (grb_error != 0)
@@ -225,10 +218,10 @@ void Gomory::Run(void) {
 
 	std::cout << "Number of cuts added: " << num_cuts << std::endl;
 
-	//delete[] int_var_vals;
-	//delete[] int_var_ids;
-	//delete[] cind;
-	//delete[] cval;
+	free(cind);
+	free(cval);
+	free(int_var_ids);
+	free(int_var_vals);
 }
 
 int main(int argc, char* argv[]) {
