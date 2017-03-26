@@ -7,6 +7,7 @@ import gurobipy as grb
 import numpy as np
 import os
 import random
+import sys
 
 __author__ = "Byron Tasseff"
 __credits__ = ["Byron Tasseff"]
@@ -17,20 +18,26 @@ __email__ = "byron@tasseff.com"
 __status__ = "Development"
 
 def make_mip(num_constraints, num_variables, pure, output_path):
-    A = 50.0 * np.random.rand(num_constraints, num_variables) - 25.0
-    x = np.multiply(25.0, np.random.rand(num_variables, 1))
+    # Create a feasible problem with constraints A' y <= c.
+    # Start by creating a feasible "dual" (i.e., a standard-form primal).
+    A = np.random.randint(-5, 5, size = (num_variables, num_constraints))
+    x = np.random.randint(0, 5, size = (num_constraints, 1))
     b = np.matmul(A, x)
-    c = np.multiply(25.0, np.random.rand(num_variables, 1))
+    c = np.random.randint(0, 5, size = (num_constraints, 1))
+    A_T = A.transpose()
 
     model = grb.Model(os.path.basename(output_path))
     model.setParam('OutputFlag', False)
-    var_types = [grb.GRB.CONTINUOUS, grb.GRB.INTEGER]
+
+    # Set the possible variable types.
+    var_types = [grb.GRB.INTEGER]
+    if not pure:
+       var_types.append(grb.GRB.CONTINUOUS)
 
     var_list = []
     for j in range(0, num_variables):
         var_type = random.choice(var_types)
-        var = model.addVar(lb = 0.0, ub = grb.GRB.INFINITY, obj = c[j],
-                           vtype = var_type)
+        var = model.addVar(obj = b[j], vtype = var_type)
         var_list.append(var)
 
     model.update()
@@ -38,15 +45,15 @@ def make_mip(num_constraints, num_variables, pure, output_path):
     for i in range(0, num_constraints):
         lhs = grb.LinExpr()
         for j, var in enumerate(var_list):
-            lhs += var * A[i, j]
-        model.addConstr(lhs, grb.GRB.LESS_EQUAL, b[i])
+            lhs += A_T[i, j] * var
+        model.addConstr(lhs, grb.GRB.LESS_EQUAL, c[i])
 
     model.update()
     model.optimize()
     status = model.Status
 
     if status != grb.GRB.OPTIMAL:
-        print('Generated problem was infeasible.')
+        print('Generated problem is infeasible.')
         sys.exit(1)
 
     model.write(output_path)
