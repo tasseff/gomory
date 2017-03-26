@@ -4,168 +4,201 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <random>
+#include <string>
 #include <unordered_set>
 #include <common/document.h>
 #include <common/error.h>
 #include <common/file.h>
 #include <Eigen/Dense>
+#include <stdio.h>
+#include <stdlib.h>
 #include "gomory.h"
 
 Gomory::Gomory(const rapidjson::Value& root) {
 	std::string model_path = root["model"].GetString();
 	epsilon = root["epsilon"].GetDouble();
-
-	env = new GRBEnv();
+	grb_error = GRBloadenv(&env, "gurobi.log");
 
 	if (root["gurobiPresolve"].GetBool() == false)
-		env->set(GRB_IntParam_Presolve, 0);
+		grb_error = GRBsetintparam(env, GRB_INT_PAR_PRESOLVE, 0);
 	if (root["gurobiCuts"].GetBool() == false)
-		env->set(GRB_IntParam_Cuts, 0);
+		grb_error = GRBsetintparam(env, GRB_INT_PAR_CUTS, 0);
+	if (root["gurobiOutput"].GetBool() == false)
+		grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
 	if (root["gurobiBB"].GetBool() == false)
-		env->set(GRB_DoubleParam_NodeLimit, 1.0);
+		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_NODELIMIT, 0.0);
 	if (root["gurobiHeuristics"].GetBool() == false)
-		env->set(GRB_DoubleParam_Heuristics, 0.0);
+		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_HEURISTICS, 0.0);
 
-	model = new GRBModel(*env, model_path);
+	grb_error = GRBreadmodel(env, model_path.c_str(), &model);
+}
+
+unsigned int Gomory::AddPureCut(int cut_var_index) {
+	// Compute r.
+	for (unsigned int i = 0; i < basis_size; i++) {
+		r(i) = -floor(Binv(i, cut_var_index));
+	}
+	
+	// Compute constants for the cut.
+	double c_beta_r = c_beta.transpose() * r;
+	a_beta_r = B * r;
+
+	for (unsigned int i = 0; i < num_vars; i++) {
+		cval[i] = a_beta_r(i);
+	}
+
+	cval[cut_var_index] += 1.0;
+
+	double y_bar_i;
+	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
+	double rhs = c_beta_r + floor(y_bar_i);
+	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
+
+	// Return number of cuts generated.
+	return 1;
+}
+
+unsigned int Gomory::AddMixedCut(int cut_var_index) {
+	// Compute r.
+	for (unsigned int i = 0; i < basis_size; i++) {
+		r(i) = -floor(Binv(i, cut_var_index));
+	}
+	
+	// Compute constants for the cut.
+	double c_beta_r = c_beta.transpose() * r;
+	a_beta_r = B * r;
+
+	double y_bar_i;
+	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
+
+	double rhs = 0.0;
+	for (unsigned int i = 0; i < num_vars; i++) {
+		if (i != cut_var_index) {
+			// Coefficients for variables that are not the cutting variables.
+			double y_bar_tmp;
+			grb_error = GRBgetdblattrelement(model, "X", i, &y_bar_tmp);
+			rhs += y_bar_tmp * a_beta_r(i);
+			cval[i] = a_beta_r(i);
+		} else {
+			// Coefficient for cutting variable.
+			cval[i] = (1.0 + a_beta_r(i)) - (y_bar_i - floor(y_bar_i));
+		}
+	}
+
+	rhs -= (y_bar_i - floor(y_bar_i) - 1.0) * floor(y_bar_i);
+	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
+
+	// Return number of cuts generated.
+	return 1;
 }
 
 Gomory::~Gomory(void) {
-	delete model;
-	delete env;
+	GRBfreemodel(model);
+	GRBfreeenv(env);
 }
 
 void Gomory::Run(void) {
   std::random_device rd;     // only used once to initialise (seed) engine
   std::mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
 	// Keep track of the variables that were originally integer.
-	std::unordered_set<unsigned int> int_var_ids;
+	grb_error = GRBgetintattr(model, "NumIntVars", &num_int_vars);
+	int* int_var_ids = (int*)malloc(num_int_vars*sizeof(int));  // new int[num_int_vars];
+	double* int_var_vals = (double*)malloc(num_int_vars*sizeof(double)); //new double[num_int_vars];
+
+	// Keep track of integer variables that are fractional in the relaxation.
+	std::unordered_set<unsigned int> frac_var_ids;
 
 	// Convert integer variables to continuous variables.
-	GRBVar* vars = model->getVars();
+	grb_error = GRBgetintattr(model, "NumVars", &num_vars);
+	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
 
-	std::unordered_set<unsigned int> int_vars;
-	for (unsigned int j = 0; j < model->get(GRB_IntAttr_NumVars); j++) {
-		if (vars[j].get(GRB_CharAttr_VType) != GRB_CONTINUOUS) {
-			vars[j].set(GRB_CharAttr_VType, GRB_CONTINUOUS);
-			int_var_ids.insert(j);
+	// Preallocate things related to the basis.
+	basis_size = num_vars;
+
+	// Variables used to construct a single new constraint.
+	cind = (int*)malloc(num_vars*sizeof(int)); //   new int[num_vars];
+	cval = (double*)malloc(num_vars*sizeof(double)); // new double[num_vars];
+
+	B.resize(basis_size, basis_size);
+	Binv.resize(basis_size, basis_size);
+	r.resize(basis_size);
+	c_beta.resize(basis_size);
+	a_beta_r.resize(basis_size);
+
+	char variable_type;
+	for (unsigned int j = 0, k = 0; j < num_vars; j++) {
+		cind[j] = j;
+
+		// If the variable type is not continuous, make it continuous.
+		grb_error = GRBgetcharattrelement(model, "VType", j, &variable_type);
+		if (variable_type != 'C') {
+			grb_error = GRBsetcharattrelement(model, "VType", j, GRB_CONTINUOUS);
+			int_var_ids[k++] = j;
 		}
 	}
 
-	// Initialize an ordered set to keep track of fractional variables.
-	std::unordered_set<unsigned int> frac_var_ids;
-	std::unordered_set<unsigned int> basis_ids;
-	std::unordered_set<unsigned int>::iterator it;
-
-	// The size of the basis will remain constant throughout.
-	unsigned int basis_size = model->get(GRB_IntAttr_NumVars);
-	// declare matricies and vectors with constant size
-  Eigen::MatrixXd basis_matrix(basis_size, basis_size);
-  Eigen::MatrixXd inverse_basis_matrix(basis_size, basis_size);
-  Eigen::VectorXd r(basis_size);
-  Eigen::VectorXd c_beta(basis_size);
-  Eigen::VectorXd a_beta_r(basis_size);
-
-  int num_cuts = 0;
-	// While there are variables with fractional values, perform the algorithm.
+	unsigned int num_cuts = 0;
 	while (true) {
-		// Write the algorithm here...
-		model->optimize();
+		grb_error = GRBoptimize(model);
+		grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
 
-		// Update the list of fractional variables.
-		for (it = int_var_ids.begin(); it != int_var_ids.end(); ++it) {
-			double tmp = vars[*it].get(GRB_DoubleAttr_X);
+		for (unsigned int k = 0; k < num_int_vars; k++) {
 			// Add the variable to the set if it's fractional.
-			if (fabs(tmp - floor(tmp + 0.5)) > epsilon) {
-				frac_var_ids.insert(*it); // TODO: Change to emplace when using gcc >= 4.8.
+			if (fabs(int_var_vals[k] - floor(int_var_vals[k] + 0.5)) > epsilon) {
+				frac_var_ids.insert(int_var_ids[k]); // TODO: Change to emplace when using gcc >= 4.8.
 			} else {
-				frac_var_ids.erase(*it); // Is this valid if the value isn't in the set?
+				frac_var_ids.erase(int_var_ids[k]); // Is this valid if the value isn't in the set?
 			}
 		}
 
-		// Update the basis matrix.
-		unsigned int basis_count = 0;
-		GRBConstr* constrs = model->getConstrs();
-		for (unsigned int i = 0; i < model->get(GRB_IntAttr_NumConstrs); i++) {
+		// If there are no fractional variables, exit the algorithm.
+		if (frac_var_ids.size() == 0) {
+			break;
+		}
+
+		// Set the cutting variable index.
+		int cut_var_index = *frac_var_ids.begin();
+
+		// Get the basis inverse.
+		// TODO: Is there a faster way to get the basis inverse?
+		for (unsigned int j = 0; j < basis_size; j++) {
+			cval[j] = 0.0;
+		}
+
+		// Populate the basis matrix and c_beta.
+		grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
+		for (unsigned int i = 0, basis_count = 0; i < num_constrs; i++) {
 			if (basis_count < basis_size) {
-				if (constrs[i].get(GRB_IntAttr_CBasis) == -1) {
+				int cbasis;
+				grb_error = GRBgetintattrelement(model, "CBasis", i, &cbasis);
+				if (cbasis == -1) {
 					for (unsigned int j = 0; j < basis_size; j++) {
-						basis_matrix(j, basis_count) = model->getCoeff(constrs[i], vars[j]);
+						double tmp_a_val;
+						grb_error = GRBgetcoeff(model, i, j, &tmp_a_val);
+						B(j, basis_count) = tmp_a_val;
 					}
-          c_beta(basis_count) = constrs[i].get(GRB_DoubleAttr_RHS);
+
+					double tmp_c_val;
+					grb_error = GRBgetdblattrelement(model, "RHS", i, &tmp_c_val);
+					c_beta(basis_count) = tmp_c_val;
 					basis_count++;
 				}
 			} else {
 				break;
 			}
 		}
-
-		//// If there are no fractional variables, exit the algorithm.
-		if (frac_var_ids.size() == 0) {
-			break;
-		}
-
-		// Choose a fractional variable and add the associated constraint.
-
-    // unsure how to choose the variable so picking first in the list atm
-    unsigned int cut_var_index = *(frac_var_ids.begin());
-    GRBVar y_i = model->getVar(cut_var_index);
-
-    // get A_beta_inverse
-    inverse_basis_matrix = basis_matrix.inverse();
-
-    // put a one in the correct position of e_i, will remove at end of iteration
-    for(int i = 0; i < basis_size; ++i) {
-      r(i) = -floor(inverse_basis_matrix(i,cut_var_index));
-    }
-
-    // get constants ready for cut
-    double c_beta_r = c_beta.transpose()*r;
-    double y_bar_i = model->getVar(cut_var_index).get(GRB_DoubleAttr_X);
-    double y_bar_i_fl = floor(y_bar_i);
-
-    // create linear expression with the variables
-    a_beta_r = basis_matrix * r;
-
-    GRBLinExpr y_bar_abeta_r;
-    for (unsigned int j = 0; j < model->get(GRB_IntAttr_NumVars); j++) {
-      y_bar_abeta_r += a_beta_r[j] * vars[j];
-    }
-
-    // generate the name for the cut
-    std::string constr_name = "c" + std::to_string(num_cuts);
-
-
-    /***********************************************************
-     *************** Generate info for mixed cut ***************
-     ***********************************************************/
-
-    // z = sum i not equal to j a_j *r * y_j
-    GRBLinExpr z_expr;
-    z_expr = y_bar_abeta_r - (a_beta_r[cut_var_index])*vars[cut_var_index];
-
-    // this is how you would construct z from scratch
-    /*for(unsigned int j = 0; j < model->(GRB_INT_ATTR_NUMVARS); j++) {
-      if(j != cut_var_index) {
-        z_expr += a_beta_r[j] * vars[j];
-      }
-    }*/
-    GRBLinExpr alpha_r_i = a_beta_r[cut_var_index];
-
-
-    // add the pure cut
-    //model->addConstr(y_i <= y_bar_i_fl + c_beta_r - y_bar_abeta_r, constr_name);
-
-    // add the mixed cut
-    model->addConstr(((1 + alpha_r_i) - (y_bar_i - y_bar_i_fl))* y_i + z_expr <=
-     y_bar_abeta_r - (y_bar_i - y_bar_i_fl - 1)* y_bar_i_fl, constr_name);
-
-    // update count of cuts made
-    ++num_cuts;
+		// Get the basis inverse.
+		Binv = B.inverse();
+		//num_cuts += AddPureCut(cut_var_index);
+		num_cuts += AddMixedCut(cut_var_index);
 	}
 
-	int optimstatus = model->get(GRB_IntAttr_Status);
+	int optimstatus;
+	grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &optimstatus);
+
 	if (optimstatus == GRB_OPTIMAL) {
-		double objval = model->get(GRB_DoubleAttr_ObjVal);
+		double objval;
+		grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objval);
 		std::cout << "Optimal objective: " << objval << std::endl;
 	} else if (optimstatus == GRB_INF_OR_UNBD) {
 		std::cout << "Model is infeasible or unbounded" << std::endl;
@@ -176,16 +209,22 @@ void Gomory::Run(void) {
 	} else {
 		std::cout << "Optimization was stopped with status = " << optimstatus << std::endl;
 	}
-  std::cout << "Number of cuts added: " << num_cuts << std::endl;
+
+	std::cout << "Number of cuts added: " << num_cuts << std::endl;
+
+	free(cind);
+	free(cval);
+	free(int_var_ids);
+	free(int_var_vals);
 }
 
 
-int Gomory::get_random_var(const std::mt19937& rng, int size) {
+int Gomory::get_random_var(std::mt19937 rng, int size) {
   std::uniform_int_distribution<int> uni(0,size-1); // guaranteed unbiased
   return uni(rng);
 }
 
-GRBVar Gomory::get_least_fractional(
+/*GRBVar Gomory::get_least_fractional(
   const std::unordered_set<unsigned int>& frac_var_ids, GRBVar* vars) {
   double least_diff;
   GRBVar least_var;
@@ -215,7 +254,7 @@ GRBVar Gomory::get_most_fractional(
     }
   }
   return most_var;
-}
+}*/
 
 int main(int argc, char* argv[]) {
 	// Check if a JSON file has been specified.

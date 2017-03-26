@@ -3,6 +3,7 @@
 		"epsilon": 1e-08,
 		"gurobiPresolve": false,
 		"gurobiCuts": false,
+		"gurobiOutput": false,
 		"gurobiBB": false,
 		"gurobiHeuristics": false
 	}
