@@ -242,21 +242,23 @@ int Gomory::get_least_fractional(const std::unordered_set<unsigned int>& frac_va
 }
 
 
-int Gomory::get_most_fractional(
-  const std::unordered_set<unsigned int>& frac_var_ids) {
-  double most_diff = 0;
-  std::unordered_set<unsigned int>::const_iterator most_var_index = frac_var_ids.begin();
-  for(std::unordered_set<unsigned int>::const_iterator i = ++frac_var_ids.begin();
-      i != frac_var_ids.end(); ++i) {
+int Gomory::get_most_fractional(const std::unordered_set<unsigned int>& frac_var_ids) {
+  double most_diff = 0.0;
+  int most_var_index = *frac_var_ids.begin();
+
+  for (std::unordered_set<unsigned int>::const_iterator i = ++frac_var_ids.begin(); i != frac_var_ids.end(); ++i) {
     double value;
     grb_error = GRBgetdblattrelement(model, "X", (*i), &value);
-    int closest_int = std::round(value);
+    double closest_int = round(value);
     double diff = fabs(value - closest_int);
-    if(diff > most_diff) {
-      most_var_index = i;
+
+    if (diff > most_diff) {
+      most_var_index = *i;
+			most_diff = diff;
     }
   }
-  return *most_var_index;
+
+  return most_var_index;
 }
 
 int main(int argc, char* argv[]) {
