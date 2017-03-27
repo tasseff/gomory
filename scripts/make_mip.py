@@ -20,10 +20,10 @@ __status__ = "Development"
 def make_mip(num_constraints, num_variables, pure, output_path):
     # Create a feasible problem with constraints A' y <= c.
     # Start by creating a feasible "dual" (i.e., a standard-form primal).
-    A = np.random.randint(-10, 10, size = (num_variables, num_constraints))
+    A = np.random.randint(-100, 100, size = (num_variables, num_constraints))
     x = np.random.rand(num_constraints, 1)
     b = np.matmul(A, x)
-    c = np.random.randint(0, 1000, size = (num_constraints, 1))
+    c = np.random.randint(0, 10000, size = (num_constraints, 1))
     A_T = A.transpose()
 
     model = grb.Model(os.path.basename(output_path))
@@ -35,12 +35,15 @@ def make_mip(num_constraints, num_variables, pure, output_path):
        var_types.append(grb.GRB.CONTINUOUS)
 
     var_list = []
+    obj = grb.LinExpr()
     for j in range(0, num_variables):
         var_type = random.choice(var_types)
-        var = model.addVar(obj = b[j], vtype = var_type)
+        var = model.addVar(vtype = var_type, lb = -grb.GRB.INFINITY, ub = grb.GRB.INFINITY)
         var_list.append(var)
+        obj += var * b[j]
 
     model.update()
+    model.setObjective(obj, sense = grb.GRB.MAXIMIZE)
 
     for i in range(0, num_constraints):
         lhs = grb.LinExpr()

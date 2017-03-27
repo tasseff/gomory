@@ -15,6 +15,13 @@
 #include <stdlib.h>
 #include "gomory.h"
 
+#define AWAY 1.0e-2
+#define EPS_COEFF 1.0e-12
+#define EPS_RELAX_ABS 1.0e-10
+#define EPS_RELAX_REL 1.0e-16
+#define MAX_DYN 1.0e6
+#define MIN_VIOL 1.0e-11
+
 Gomory::Gomory(const rapidjson::Value& root) {
 	std::string model_path = root["model"].GetString();
 	epsilon = root["epsilon"].GetDouble();
@@ -130,14 +137,14 @@ void Gomory::Run(void) {
 
 	unsigned int num_cuts = 0;
 	while (true) {
-    std::cout << num_cuts << std::endl;
+    //std::cout << num_cuts << std::endl;
 
     grb_error = GRBoptimize(model);
 		grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
 
 		for (unsigned int k = 0; k < num_int_vars; k++) {
 			// Add the variable to the set if it's fractional.
-			if (fabs(int_var_vals[k] - floor(int_var_vals[k] + 0.5)) > epsilon) {
+			if (fabs(int_var_vals[k] - round(int_var_vals[k])) > AWAY) {
 				frac_var_ids.insert(int_var_ids[k]); // TODO: Change to emplace when using gcc >= 4.8.
 			} else {
 				frac_var_ids.erase(int_var_ids[k]); // Is this valid if the value isn't in the set?
@@ -152,6 +159,7 @@ void Gomory::Run(void) {
 		// Set the cutting variable index.
 		//int cut_var_index = *frac_var_ids.begin();
     //int cut_var_index = get_most_fractional(frac_var_ids);
+		//std::cout << int_var_vals[cut_var_index] << std::endl;
     //int cut_var_index = get_least_fractional(frac_var_ids);
     int cut_var_index = get_random_var(frac_var_ids, rng);
 		// Get the basis inverse.
@@ -182,10 +190,11 @@ void Gomory::Run(void) {
 				break;
 			}
 		}
+
 		// Get the basis inverse.
 		Binv = B.inverse();
-		num_cuts += AddPureCut(cut_var_index);
-		//num_cuts += AddMixedCut(cut_var_index);
+		//num_cuts += AddPureCut(cut_var_index);
+		num_cuts += AddMixedCut(cut_var_index);
 	}
 
 	int optimstatus;
@@ -215,32 +224,17 @@ void Gomory::Run(void) {
 
 
 int Gomory::get_random_var(const std::unordered_set<unsigned int>& frac_var_ids,
-  std::mt19937 &rng) {
-  std::uniform_int_distribution<int> uni(0,frac_var_ids.size()-1); // guaranteed unbiased
-  int index = uni(rng);
-  auto it = frac_var_ids.begin();
-  if(index != 0) {
-    advance(it,index-1);
-  }
+	                         std::mt19937 &rng) {
+	std::uniform_int_distribution<int> uni(0,frac_var_ids.size() - 1);
+	int index = uni(rng);
+	std::unordered_set<unsigned int>::const_iterator it = frac_var_ids.begin();
+
+	if (index != 0) {
+		advance(it,index-1);
+	}
+
   return *it;
 }
-
-int Gomory::get_least_fractional(const std::unordered_set<unsigned int>& frac_var_ids) {
-	double least_diff = std::numeric_limits<double>::max();
-  std::unordered_set<unsigned int>::const_iterator least_var_index = frac_var_ids.begin();
-  for(std::unordered_set<unsigned int>::const_iterator i = ++frac_var_ids.begin();
-      i != frac_var_ids.end(); ++i) {
-      double value;
-      grb_error = GRBgetdblattrelement(model, "X", (*i), &value);
-      int closest_int = std::round(value);
-      double diff = fabs(value - closest_int);
-      if(diff < least_diff) {
-        least_var_index = i;
-      }
-    }
-    return *least_var_index;
-}
-
 
 int Gomory::get_most_fractional(const std::unordered_set<unsigned int>& frac_var_ids) {
   double most_diff = 0.0;
@@ -248,7 +242,7 @@ int Gomory::get_most_fractional(const std::unordered_set<unsigned int>& frac_var
 
   for (std::unordered_set<unsigned int>::const_iterator i = ++frac_var_ids.begin(); i != frac_var_ids.end(); ++i) {
     double value;
-    grb_error = GRBgetdblattrelement(model, "X", (*i), &value);
+    grb_error = GRBgetdblattrelement(model, "X", *i, &value);
     double closest_int = round(value);
     double diff = fabs(value - closest_int);
 
