@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include "gomory.h"
 
-#define AWAY 1.0e-4
+#define AWAY 1.0e-7
 #define EPS_COEFF 1.0e-12
 #define EPS_RELAX_ABS 1.0e-10
 #define EPS_RELAX_REL 1.0e-16
@@ -63,6 +63,7 @@ unsigned int Gomory::AddPureCut(int cut_var_index) {
 	double rhs = c_beta_r + floor(y_bar_i);
 	grb_error = GRBaddconstr(model, num_vars, cind, cval, GRB_LESS_EQUAL, rhs, NULL);
 	grb_error = GRBoptimize(model);
+
 	LexicographicSimplex();
 
 	// Return number of cuts generated.
@@ -108,10 +109,16 @@ void Gomory::LexicographicSimplex(void) {
 	for (unsigned int j = 1; j < num_vars; j++) {
 		for (unsigned int k = 0; k < num_vars; k++) {
 			if (k == j) {
+				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
+				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[k] + 0.001);
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[k] + powf(10.0, -k));
+				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + 0.01 / (double)j);
 				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + powf(10.0, -j));
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + powf(10.0, -j));
+				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, powf(10.0, -j));
+				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + 1.0e-6);
 			} else {
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j]);
+				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[k]);
 			}
 		}
 
@@ -217,9 +224,15 @@ void Gomory::Run(void) {
 		//int cut_var_index = *frac_var_ids.begin();
     //int cut_var_index = get_most_fractional(frac_var_ids);
 		//std::cout << int_var_vals[cut_var_index] << std::endl;
-    //int cut_var_index = get_least_fractional(frac_var_ids);
+
+		int cut_var_index;
+		if (num_cuts % 10) {
+			cut_var_index = get_random_var(frac_var_ids, rng);
+		} else {
+			cut_var_index = get_least_fractional(frac_var_ids);
+		}
+
     //int cut_var_index = get_most_fractional(frac_var_ids);
-    int cut_var_index = get_random_var(frac_var_ids, rng);
 		// Get the basis inverse.
 		// TODO: Is there a faster way to get the basis inverse?
 		for (unsigned int j = 0; j < basis_size; j++) {
@@ -237,6 +250,7 @@ void Gomory::Run(void) {
 						double tmp_a_val;
 						grb_error = GRBgetcoeff(model, i, j, &tmp_a_val);
 						B(j, basis_count) = tmp_a_val;
+						//B(basis_count, j) = tmp_a_val;
 					}
 
 					double tmp_c_val;
@@ -248,6 +262,7 @@ void Gomory::Run(void) {
 				break;
 			}
 		}
+
 		//grb_error = GRBoptimize(model);
 
 		// Get the basis inverse.
