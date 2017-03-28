@@ -12,6 +12,7 @@ public:
 	Gomory(const rapidjson::Value& root);
 	unsigned int AddPureCut(int cut_var_index);
 	unsigned int AddMixedCut(int cut_var_index);
+	void LexicographicSimplex(void);
 	~Gomory(void);
 	void Run(void);
 
@@ -31,7 +32,9 @@ private:
 	Eigen::VectorXd a_beta_r;
 
 	int* cind;
+	int* del_constr_ids;
 	double* cval;
+	double* original_objs;
 
 	GRBenv* env;
 	GRBmodel* model;
