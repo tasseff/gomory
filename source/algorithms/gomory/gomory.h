@@ -7,6 +7,8 @@ extern "C" {
 	#include <gurobi_c.h>
 }
 
+typedef std::unordered_set<unsigned int> index_set;
+
 class Gomory {
 public:
 	Gomory(const rapidjson::Value& root);
@@ -17,10 +19,9 @@ public:
 	void Run(void);
 
 private:
-	int get_random_var(const std::unordered_set<unsigned int>& frac_var_ids,
-    std::mt19937 &rng);
-	int get_most_fractional(const std::unordered_set<unsigned int>& frac_var_ids);
-	int get_least_fractional(const std::unordered_set<unsigned int>& frac_var_ids);
+	int get_random_var(const index_set& frac_var_ids, std::mt19937 &rng);
+	int get_most_fractional(const index_set& frac_var_ids);
+	int get_least_fractional(const index_set& frac_var_ids);
 	int num_vars, num_constrs, num_int_vars, status, grb_error;
 	unsigned int basis_size;
 	double epsilon;
@@ -38,6 +39,4 @@ private:
 
 	GRBenv* env;
 	GRBmodel* model;
-	//GRBsvec* Binv_tmp;
-	//GRBsvec* svec_tmp;
 };

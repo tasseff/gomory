@@ -14,8 +14,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "gomory.h"
+#include <unistd.h>
 
-#define AWAY 1.0e-7
+#define AWAY 1.0e-2
 #define EPS_COEFF 1.0e-12
 #define EPS_RELAX_ABS 1.0e-10
 #define EPS_RELAX_REL 1.0e-16
@@ -27,18 +28,23 @@ Gomory::Gomory(const rapidjson::Value& root) {
 	epsilon = root["epsilon"].GetDouble();
 	grb_error = GRBloadenv(&env, "gurobi.log");
 
-	if (root["gurobiPresolve"].GetBool() == false)
-		grb_error = GRBsetintparam(env, GRB_INT_PAR_PRESOLVE, 0);
-	if (root["gurobiCuts"].GetBool() == false)
-		grb_error = GRBsetintparam(env, GRB_INT_PAR_CUTS, 0);
-	if (root["gurobiOutput"].GetBool() == false)
-		grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
-	if (root["gurobiBB"].GetBool() == false)
-		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_NODELIMIT, 0.0);
-	if (root["gurobiHeuristics"].GetBool() == false)
-		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_HEURISTICS, 0.0);
-	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_OPTIMALITYTOL, 1e-9);
-
+//	if (root["gurobiPresolve"].GetBool() == false)
+//		grb_error = GRBsetintparam(env, GRB_INT_PAR_PRESOLVE, 0);
+//	if (root["gurobiCuts"].GetBool() == false)
+//		grb_error = GRBsetintparam(env, GRB_INT_PAR_CUTS, 0);
+//	if (root["gurobiOutput"].GetBool() == false)
+//		grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
+//	if (root["gurobiBB"].GetBool() == false)
+//		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_NODELIMIT, 0.0);
+//	if (root["gurobiHeuristics"].GetBool() == false)
+//		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_HEURISTICS, 0.0);
+//
+//	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_OPTIMALITYTOL, 1.0e-9);
+//	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_FEASIBILITYTOL, 1.0e-9);
+//	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_MARKOWITZTOL, 0.999);
+//	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_BARCONVTOL, 0.0);
+//	grb_error = GRBsetintparam(env, GRB_INT_PAR_QUAD, 1);
+//
 	grb_error = GRBreadmodel(env, model_path.c_str(), &model);
 }
 
@@ -96,7 +102,6 @@ unsigned int Gomory::AddMixedCut(int cut_var_index) {
 }
 
 void Gomory::LexicographicSimplex(void) {
-	// Lexicographic simplex.
 	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
 
 	double sol_i;
@@ -109,23 +114,15 @@ void Gomory::LexicographicSimplex(void) {
 	for (unsigned int j = 1; j < num_vars; j++) {
 		for (unsigned int k = 0; k < num_vars; k++) {
 			if (k == j) {
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[k] + 0.001);
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[k] + powf(10.0, -k));
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + 0.01 / (double)j);
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + powf(10.0, -j));
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, powf(10.0, -j));
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[j] + 1.0e-6);
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
 			} else {
-				//grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_objs[k]);
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
 			}
 		}
 
 		grb_error = GRBoptimize(model);
 
 		int id[1] = {j};
-		//double vid[1] = {1.0 * powf(10, -j)};
 		double vid[1] = {1.0};
 
 		double sol_j;
@@ -135,13 +132,13 @@ void Gomory::LexicographicSimplex(void) {
 	}
 
 	grb_error = GRBoptimize(model);
+	grb_error = GRBdelconstrs(model, num_vars, del_constr_ids);
 
-	// Restore to the original problem.
+	// Restore the objective to that of the original problem.
 	for (unsigned int j = 0; j < num_vars; j++) {
 		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_objs[j]);
 	}
 
-	grb_error = GRBdelconstrs(model, num_vars, del_constr_ids);
 	grb_error = GRBoptimize(model);
 }
 
@@ -193,109 +190,119 @@ void Gomory::Run(void) {
 		char variable_type;
 		grb_error = GRBgetcharattrelement(model, "VType", j, &variable_type);
 		if (variable_type != 'C') {
-			grb_error = GRBsetcharattrelement(model, "VType", j, GRB_CONTINUOUS);
+			grb_error = GRBsetcharattrelement(model, "VType", j, 'C');
 			int_var_ids[k++] = j;
 		}
 	}
 
+	grb_error = GRBupdatemodel(model);
+	grb_error = GRBresetmodel(model);
 	grb_error = GRBgetdblattrlist(model, GRB_DBL_ATTR_OBJ, num_vars, cind, original_objs);
 
 	unsigned int num_cuts = 0;
 	grb_error = GRBoptimize(model);
-	while (true) {
-    //std::cout << num_cuts << std::endl;
-		grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
 
-		for (unsigned int k = 0; k < num_int_vars; k++) {
-			// Add the variable to the set if it's fractional.
-			if (fabs(int_var_vals[k] - round(int_var_vals[k])) >= AWAY) {
-				frac_var_ids.insert(int_var_ids[k]); // TODO: Change to emplace when using gcc >= 4.8.
-			} else {
-				frac_var_ids.erase(int_var_ids[k]); // Is this valid if the value isn't in the set?
-			}
-		}
+	//double obj;
+	//grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &obj);
+	//std::cout << obj << std::endl;
 
-		// If there are no fractional variables, exit the algorithm.
-		if (frac_var_ids.size() == 0) {
-			break;
-		}
+	//while (true) {
+  //  //std::cout << num_cuts << std::endl;
+	//	grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
 
-		// Set the cutting variable index.
-		//int cut_var_index = *frac_var_ids.begin();
-    //int cut_var_index = get_most_fractional(frac_var_ids);
-		//std::cout << int_var_vals[cut_var_index] << std::endl;
+	//	for (unsigned int k = 0; k < num_int_vars; k++) {
+	//		// Add the variable to the set if it's fractional.
+	//		if (fabs(int_var_vals[k] - round(int_var_vals[k])) >= AWAY) {
+	//			frac_var_ids.insert(int_var_ids[k]); // TODO: Change to emplace when using gcc >= 4.8.
+	//		} else {
+	//			frac_var_ids.erase(int_var_ids[k]); // Is this valid if the value isn't in the set?
+	//		}
+	//	}
 
-		int cut_var_index;
-		if (num_cuts % 10) {
-			cut_var_index = get_random_var(frac_var_ids, rng);
-		} else {
-			cut_var_index = get_least_fractional(frac_var_ids);
-		}
+	//	// If there are no fractional variables, exit the algorithm.
+	//	if (frac_var_ids.size() == 0) {
+	//		break;
+	//	}
 
-    //int cut_var_index = get_most_fractional(frac_var_ids);
-		// Get the basis inverse.
-		// TODO: Is there a faster way to get the basis inverse?
-		for (unsigned int j = 0; j < basis_size; j++) {
-			cval[j] = 0.0;
-		}
+	//	// Set the cutting variable index.
+	//	//int cut_var_index = *frac_var_ids.begin();
+  //  //int cut_var_index = get_most_fractional(frac_var_ids);
+	//	//std::cout << int_var_vals[cut_var_index] << std::endl;
 
-		// Populate the basis matrix and c_beta.
-		grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
-		for (unsigned int i = 0, basis_count = 0; i < num_constrs; i++) {
-			if (basis_count < basis_size) {
-				int cbasis;
-				grb_error = GRBgetintattrelement(model, "CBasis", i, &cbasis);
-				if (cbasis == -1) {
-					for (unsigned int j = 0; j < basis_size; j++) {
-						double tmp_a_val;
-						grb_error = GRBgetcoeff(model, i, j, &tmp_a_val);
-						B(j, basis_count) = tmp_a_val;
-						//B(basis_count, j) = tmp_a_val;
-					}
+	//	int cut_var_index;
+	//	//cut_var_index = get_least_fractional(frac_var_ids);
+	//	if (num_cuts % 10 == 0) {
+	//		cut_var_index = get_random_var(frac_var_ids, rng);
+	//	} else if (num_cuts % 5 == 0) {
+	//		cut_var_index = get_most_fractional(frac_var_ids);
+	//	} else {
+	//		cut_var_index = get_least_fractional(frac_var_ids);
+	//	}
 
-					double tmp_c_val;
-					grb_error = GRBgetdblattrelement(model, "RHS", i, &tmp_c_val);
-					c_beta(basis_count) = tmp_c_val;
-					basis_count++;
-				}
-			} else {
-				break;
-			}
-		}
+  //  //int cut_var_index = get_most_fractional(frac_var_ids);
+	//	// Get the basis inverse.
+	//	// TODO: Is there a faster way to get the basis inverse?
+	//	for (unsigned int j = 0; j < basis_size; j++) {
+	//		cval[j] = 0.0;
+	//	}
 
-		//grb_error = GRBoptimize(model);
+	//	// Populate the basis matrix and c_beta.
+	//	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
+	//	for (unsigned int i = 0, basis_count = 0; i < num_constrs; i++) {
+	//		if (basis_count < basis_size) {
+	//			int cbasis;
+	//			grb_error = GRBgetintattrelement(model, "CBasis", i, &cbasis);
+	//			if (cbasis == -1) {
+	//				for (unsigned int j = 0; j < basis_size; j++) {
+	//					double tmp_a_val;
+	//					grb_error = GRBgetcoeff(model, i, j, &tmp_a_val);
+	//					B(j, basis_count) = tmp_a_val;
+	//					//B(basis_count, j) = tmp_a_val;
+	//				}
 
-		// Get the basis inverse.
-		Binv = B.inverse();
-		num_cuts += AddPureCut(cut_var_index);
-		//grb_error = GRBoptimize(model);
-		//LexicographicSimplex();
-    //grb_error = GRBoptimize(model);
-		//num_cuts += AddMixedCut(cut_var_index);
+	//				double tmp_c_val;
+	//				grb_error = GRBgetdblattrelement(model, "RHS", i, &tmp_c_val);
+	//				c_beta(basis_count) = tmp_c_val;
+	//				basis_count++;
+	//			}
+	//		} else {
+	//			break;
+	//		}
+	//	}
 
-		double obj;
-		grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &obj);
-		std::cout << num_cuts << "\t" << cut_var_index << "\t" << B.determinant() << "\t" << obj << std::endl;
-	}
+	//	//grb_error = GRBoptimize(model);
 
-	int optimstatus;
-	grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &optimstatus);
+	//	// Get the basis inverse.
+	//	Binv = B.inverse();
+	//	num_cuts += AddPureCut(cut_var_index);
+	//	//grb_error = GRBoptimize(model);
+	//	//LexicographicSimplex();
+  //  //grb_error = GRBoptimize(model);
+	//	//num_cuts += AddMixedCut(cut_var_index);
 
-	if (optimstatus == GRB_OPTIMAL) {
-		double objval;
-		grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objval);
-		std::cout << "Optimal objective: " << objval << std::endl;
-	} else if (optimstatus == GRB_INF_OR_UNBD) {
-		std::cout << "Model is infeasible or unbounded" << std::endl;
-	} else if (optimstatus == GRB_INFEASIBLE) {
-		std::cout << "Model is infeasible" << std::endl;
-	} else if (optimstatus == GRB_UNBOUNDED) {
-		std::cout << "Model is unbounded" << std::endl;
-	} else {
-		std::cout << "Optimization was stopped with status = " << optimstatus << std::endl;
-	}
+	//	double obj;
+	//	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &obj);
+	//	std::cout << num_cuts << "\t" << cut_var_index << "\t" << B.determinant() << "\t" << obj << std::endl;
+	//}
 
-	std::cout << "Number of cuts added: " << num_cuts << std::endl;
+	//int optimstatus;
+	//grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &optimstatus);
+
+	//if (optimstatus == GRB_OPTIMAL) {
+	//	double objval;
+	//	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objval);
+	//	std::cout << "Optimal objective: " << objval << std::endl;
+	//} else if (optimstatus == GRB_INF_OR_UNBD) {
+	//	std::cout << "Model is infeasible or unbounded" << std::endl;
+	//} else if (optimstatus == GRB_INFEASIBLE) {
+	//	std::cout << "Model is infeasible" << std::endl;
+	//} else if (optimstatus == GRB_UNBOUNDED) {
+	//	std::cout << "Model is unbounded" << std::endl;
+	//} else {
+	//	std::cout << "Optimization was stopped with status = " << optimstatus << std::endl;
+	//}
+
+	//std::cout << "Number of cuts added: " << num_cuts << std::endl;
 
 	free(int_var_vals);
 	free(int_var_ids);

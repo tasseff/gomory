@@ -1,5 +1,5 @@
-SET(SOURCE_FILES document.cpp error.cpp file.cpp)
-SET(HEADER_FILES document.h error.h file.h)
+SET(SOURCE_FILES base_model.cpp document.cpp error.cpp file.cpp)
+SET(HEADER_FILES base_model.h document.h error.h file.h)
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR})
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})

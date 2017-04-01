@@ -1,10 +1,5 @@
 { "parameters": {
 		"model": "test.lp",
-		"epsilon": 1e-08,
-		"gurobiPresolve": false,
-		"gurobiCuts": false,
-		"gurobiOutput": false,
-		"gurobiBB": false,
-		"gurobiHeuristics": false
+		"solution": "solution.sol"
 	}
 }
