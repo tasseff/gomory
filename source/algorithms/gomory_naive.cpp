@@ -1,7 +1,5 @@
 #include <cstdlib>
 #include <iostream>
-#include <common/document.h>
-#include <common/error.h>
 #include "gomory_naive.h"
 
 #define AWAY 1.0e-2
@@ -175,27 +173,34 @@ int GomoryNaive::GetRandomIndex(void) {
 	return *it;
 }
 
+int GomoryNaive::Step(void) {
+	UpdateBasisData();
+	int cut_id = *frac_int_vars.begin();
+	//int cut_id = GetRandomIndex();
+
+	if (num_vars == num_int_vars) {
+		// If all of the variables were integer, use the pure integer cut.
+		//num_cuts += AddPureCut(cut_id);
+		num_cuts += AddMixedCut(cut_id);
+	} else {
+		// Otherwise, use the mixed-integer cut.
+		num_cuts += AddMixedCut(cut_id);
+	}
+
+	grb_error = GRBoptimize(model);
+	int num_frac_vars = UpdateVariableData();
+
+	std::cout << num_cuts << std::endl;
+
+	return num_frac_vars;
+}
+
 void GomoryNaive::Run(void) {
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
 
 	while (num_frac_vars > 0) {
-		UpdateBasisData();
-		int cut_id = GetRandomIndex();
-
-		if (num_vars == num_int_vars) {
-			// If all of the variables were integer, use the pure integer cut.
-			//num_cuts += AddPureCut(cut_id);
-			num_cuts += AddMixedCut(cut_id);
-		} else {
-			// Otherwise, use the mixed-integer cut.
-			num_cuts += AddMixedCut(cut_id);
-		}
-
-		grb_error = GRBoptimize(model);
-		num_frac_vars = UpdateVariableData();
-
-		std::cout << num_cuts << std::endl;
+		num_frac_vars = Step();
 	}
 
 	grb_error = GRBwrite(model, solution_path.c_str());
@@ -206,26 +211,4 @@ GomoryNaive::~GomoryNaive(void) {
 	free(cut_coeff_ids);
 	free(int_var_vals);
 	free(int_var_ids);
-}
-
-int main(int argc, char* argv[]) {
-	// Check if a JSON file has been specified.
-	if (argc <= 1) {
-		PrintErrorAndExit("JSON file has not been specified.");
-	}
-
-	// Read the scenario file.
-	File model_file(argv[1]);
-
-	// Parse the scenario file as a JSON document.
-	Document json(model_file);
-
-	// Set up the model.
-	GomoryNaive model(json.root["parameters"]);
-
-	// Run the model.
-	model.Run();
-
-	// Program executed successfully.
-	return 0;
 }

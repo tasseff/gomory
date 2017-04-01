@@ -11,6 +11,7 @@ public:
 	void Run(void);
 
 protected:
+	int Step(void);
 	void ConvertVariables(void);
 	void SetupModel(void);
 	void UpdateBasisData(void);
