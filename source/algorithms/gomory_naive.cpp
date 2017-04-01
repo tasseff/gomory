@@ -2,7 +2,7 @@
 #include <iostream>
 #include "gomory_naive.h"
 
-#define AWAY 1.0e-2
+#define AWAY 1.0e-1
 
 GomoryNaive::GomoryNaive(const rapidjson::Value& root) : BaseModel(root) {
 	// Ensure Gurobi behaves only as a very accurate linear programming solver.
@@ -187,8 +187,8 @@ int GomoryNaive::Step(void) {
 
 	if (num_vars == num_int_vars) {
 		// If all of the variables were integer, use the pure integer cut.
-		num_cuts += AddPureCut(cut_id);
-		//num_cuts += AddMixedCut(cut_id);
+		//num_cuts += AddPureCut(cut_id);
+		num_cuts += AddMixedCut(cut_id);
 	} else {
 		// Otherwise, use the mixed-integer cut.
 		num_cuts += AddMixedCut(cut_id);

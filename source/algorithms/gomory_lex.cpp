@@ -52,6 +52,7 @@ void GomoryLex::LexSimplex(void) {
 		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_obj_coeffs[j]);
 	}
 
+	grb_error = GRBupdatemodel(model);
 	grb_error = GRBoptimize(model);
 }
 
@@ -60,8 +61,8 @@ void GomoryLex::Run(void) {
 	int num_frac_vars = UpdateVariableData();
 
 	while (num_frac_vars > 0) {
-		LexSimplex();
 		num_frac_vars = Step();
+		LexSimplex();
 		PrintStep();
 	}
 
