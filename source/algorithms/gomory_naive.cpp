@@ -173,6 +173,13 @@ int GomoryNaive::GetRandomIndex(void) {
 	return *it;
 }
 
+void GomoryNaive::PrintStep(void) {
+	double B_det = B.determinant();
+	double current_obj;
+	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &current_obj);
+	std::cout << num_cuts << "\t" << B.determinant() << "\t" << current_obj << std::endl;
+}
+
 int GomoryNaive::Step(void) {
 	UpdateBasisData();
 	int cut_id = *frac_int_vars.begin();
@@ -180,8 +187,8 @@ int GomoryNaive::Step(void) {
 
 	if (num_vars == num_int_vars) {
 		// If all of the variables were integer, use the pure integer cut.
-		//num_cuts += AddPureCut(cut_id);
-		num_cuts += AddMixedCut(cut_id);
+		num_cuts += AddPureCut(cut_id);
+		//num_cuts += AddMixedCut(cut_id);
 	} else {
 		// Otherwise, use the mixed-integer cut.
 		num_cuts += AddMixedCut(cut_id);
@@ -189,8 +196,6 @@ int GomoryNaive::Step(void) {
 
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
-
-	std::cout << num_cuts << std::endl;
 
 	return num_frac_vars;
 }
@@ -201,6 +206,7 @@ void GomoryNaive::Run(void) {
 
 	while (num_frac_vars > 0) {
 		num_frac_vars = Step();
+		PrintStep();
 	}
 
 	grb_error = GRBwrite(model, solution_path.c_str());

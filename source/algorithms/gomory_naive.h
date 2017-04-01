@@ -15,6 +15,7 @@ protected:
 	void ConvertVariables(void);
 	void SetupModel(void);
 	void UpdateBasisData(void);
+	void PrintStep(void);
 	int UpdateVariableData(void);
 	int AddPureCut(int cut_var_index);
 	int AddMixedCut(int cur_var_index);

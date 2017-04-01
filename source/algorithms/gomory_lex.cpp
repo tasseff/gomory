@@ -62,6 +62,7 @@ void GomoryLex::Run(void) {
 	while (num_frac_vars > 0) {
 		LexSimplex();
 		num_frac_vars = Step();
+		PrintStep();
 	}
 
 	grb_error = GRBwrite(model, solution_path.c_str());
