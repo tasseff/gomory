@@ -18,6 +18,9 @@ protected:
 	int AddPureCut(int cut_var_index);
 	int AddMixedCut(int cur_var_index);
 
+	// Methods to obtain fractional variable indices.
+	int GetRandomIndex(void);
+
 	// Declare other required variables.
 	int basis_size, num_cuts;
 

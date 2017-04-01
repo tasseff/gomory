@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <common/document.h>
 #include <common/error.h>
@@ -163,24 +164,38 @@ int GomoryNaive::AddMixedCut(int cut_var_index) {
 	return 1;
 }
 
+int GomoryNaive::GetRandomIndex(void) {
+	int set_index = rand() % frac_int_vars.size();
+
+	std::set<int>::const_iterator it = frac_int_vars.begin();
+	if (set_index != 0) {
+		advance(it, set_index - 1);
+	}
+
+	return *it;
+}
+
 void GomoryNaive::Run(void) {
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
 
 	while (num_frac_vars > 0) {
 		UpdateBasisData();
+		int cut_id = GetRandomIndex();
 
 		if (num_vars == num_int_vars) {
 			// If all of the variables were integer, use the pure integer cut.
-			//num_cuts += AddPureCut(*frac_int_vars.begin());
-			num_cuts += AddMixedCut(*frac_int_vars.begin());
+			//num_cuts += AddPureCut(cut_id);
+			num_cuts += AddMixedCut(cut_id);
 		} else {
 			// Otherwise, use the mixed-integer cut.
-			num_cuts += AddMixedCut(*frac_int_vars.begin());
+			num_cuts += AddMixedCut(cut_id);
 		}
 
 		grb_error = GRBoptimize(model);
 		num_frac_vars = UpdateVariableData();
+
+		std::cout << num_cuts << std::endl;
 	}
 
 	grb_error = GRBwrite(model, solution_path.c_str());
