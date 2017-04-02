@@ -1,8 +1,6 @@
 #include <iostream>
 #include "gomory_lex.h"
 
-#define AWAY 1.0e-2
-
 GomoryLex::GomoryLex(const rapidjson::Value& root) : GomoryNaive(root) {
 	original_obj_coeffs = (double*)malloc(num_vars*sizeof(double));
 	del_lex_constr_ids = (int*)malloc(num_vars*sizeof(int));
@@ -28,12 +26,6 @@ void GomoryLex::LexSimplex(void) {
 
 	for (unsigned int j = 1; j < num_vars; j++) {
 		for (unsigned int k = 0; k < num_vars; k++) {
-			//if (k == j) {
- 			//	grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_obj_coeffs[k] + powf(10.0, -j));
- 			//} else {
- 			//	grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_obj_coeffs[k]);
- 			//}
-
 			if (k == j) {
 				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
 			} else {

@@ -1,5 +1,5 @@
 { "parameters": {
-		"model": "mip_test.lp",
+		"model": "naive_versus_lex_ex.lp",
 		"solution": "solution.sol"
 	}
 }
