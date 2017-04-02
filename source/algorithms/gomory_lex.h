@@ -7,6 +7,7 @@ public:
 	GomoryLex(const rapidjson::Value& root);
 	~GomoryLex(void);
 	void Run(void);
+	int Step(void);
 
 protected:
 	void LexSimplex(void);

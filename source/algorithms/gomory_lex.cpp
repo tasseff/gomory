@@ -1,6 +1,8 @@
 #include <iostream>
 #include "gomory_lex.h"
 
+#define AWAY 1.0e-2
+
 GomoryLex::GomoryLex(const rapidjson::Value& root) : GomoryNaive(root) {
 	original_obj_coeffs = (double*)malloc(num_vars*sizeof(double));
 	del_lex_constr_ids = (int*)malloc(num_vars*sizeof(int));
@@ -26,6 +28,12 @@ void GomoryLex::LexSimplex(void) {
 
 	for (unsigned int j = 1; j < num_vars; j++) {
 		for (unsigned int k = 0; k < num_vars; k++) {
+			//if (k == j) {
+ 			//	grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_obj_coeffs[k] + powf(10.0, -j));
+ 			//} else {
+ 			//	grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_obj_coeffs[k]);
+ 			//}
+
 			if (k == j) {
 				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
 			} else {
@@ -45,15 +53,33 @@ void GomoryLex::LexSimplex(void) {
 	}
 
 	grb_error = GRBoptimize(model);
-	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
 
 	// Restore the objective to that of the original problem.
 	for (unsigned int j = 0; j < num_vars; j++) {
 		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_obj_coeffs[j]);
 	}
 
-	grb_error = GRBupdatemodel(model);
+	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
 	grb_error = GRBoptimize(model);
+}
+int GomoryLex::Step(void) {
+	UpdateBasisData();
+	int cut_id = GetRandomIndex();
+	//int cut_id = *frac_int_vars.begin();
+
+	if (num_vars == num_int_vars) {
+		// If all of the variables were integer, use the pure integer cut.
+		LexSimplex();
+		num_cuts += AddPureCut(cut_id);
+	} else {
+		// Otherwise, use the mixed-integer cut.
+		LexSimplex();
+		num_cuts += AddMixedCut(cut_id);
+	}
+
+	grb_error = GRBoptimize(model);
+
+	return UpdateVariableData();
 }
 
 void GomoryLex::Run(void) {
@@ -62,7 +88,6 @@ void GomoryLex::Run(void) {
 
 	while (num_frac_vars > 0) {
 		num_frac_vars = Step();
-		LexSimplex();
 		PrintStep();
 	}
 
