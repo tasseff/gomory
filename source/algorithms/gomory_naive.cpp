@@ -107,10 +107,7 @@ void GomoryNaive::UpdateBasisData(void) {
 		}
 	}
 
-
 	// Get the basis inverse.
-	//B = B.transpose().eval();
-	//std::cout << B << std::endl;
 	B_inv = B.inverse();
 }
 
