@@ -76,7 +76,7 @@ int GomoryLex::PurgeCuts(void) {
 }
 
 int GomoryLex::Step(void) {
-	if (objective_value != old_objective_value || iter_since_purge >= 1000) {
+	if (objective_value != old_objective_value || iter_since_purge >= original_num_constrs * 10) {
 		iter_since_purge = 0;
 		int num_constrs_purged = PurgeCuts();
 		old_objective_value = objective_value;
