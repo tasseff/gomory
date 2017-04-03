@@ -5,7 +5,6 @@
 class GomoryRoundsLex : public GomoryLex {
 public:
   GomoryRoundsLex(const rapidjson::Value& root);
-  ~GomoryRoundsLex(void);
   void Run(void);
   int Step(void);
 
