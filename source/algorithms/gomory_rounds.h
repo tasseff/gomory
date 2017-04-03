@@ -9,6 +9,6 @@ public:
 	int Step(void);
 
 protected:
-	void AddPureRounds(void);
-	void AddMixedRounds(void);
+	int AddPureRounds(void);
+	int AddMixedRounds(void);
 };

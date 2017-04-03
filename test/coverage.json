@@ -1,5 +1,5 @@
 { "parameters": {
-		"model": "worst_case_pure.lp",
+		"model": "book_test.lp",
 		"solution": "solution.sol"
 	}
 }
