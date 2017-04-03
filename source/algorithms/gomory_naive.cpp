@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include "gomory_naive.h"
 
 #define AWAY 1.0e-2
@@ -106,7 +107,10 @@ void GomoryNaive::UpdateBasisData(void) {
 		}
 	}
 
+
 	// Get the basis inverse.
+	//B = B.transpose().eval();
+	//std::cout << B << std::endl;
 	B_inv = B.inverse();
 }
 
@@ -171,6 +175,43 @@ int GomoryNaive::GetRandomIndex(void) {
 	}
 
 	return *it;
+}
+
+int GomoryNaive::GetMostFractionalIndex(void) {
+	double max_diff = 0.0;
+	int best_index = *frac_int_vars.begin();
+
+	for (std::set<int>::const_iterator it = ++frac_int_vars.begin(); it != frac_int_vars.end(); it++) {
+		double val;
+		grb_error = GRBgetdblattrelement(model, "X", *it, &val);
+
+		double closest_int = round(val);
+		double diff = fabs(val - closest_int);
+		max_diff = diff > max_diff ? diff : max_diff;
+		best_index = diff > max_diff ? *it : best_index;
+	}
+
+	return best_index;
+}
+
+int GomoryNaive::GetLeastFractionalIndex(void) {
+	double min_diff = std::numeric_limits<double>::max();
+	int best_index = *frac_int_vars.begin();
+
+	for (std::set<int>::const_iterator it = ++frac_int_vars.begin(); it != frac_int_vars.end(); it++) {
+		double val;
+		grb_error = GRBgetdblattrelement(model, "X", *it, &val);
+
+		double closest_int = round(val);
+		double diff = fabs(val - closest_int);
+
+		if (diff > AWAY && diff < min_diff) {
+			min_diff = diff;
+			best_index = *it;
+		}
+	}
+
+	return best_index;
 }
 
 void GomoryNaive::PrintStep(void) {

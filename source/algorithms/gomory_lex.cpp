@@ -56,6 +56,8 @@ void GomoryLex::LexSimplex(void) {
 }
 int GomoryLex::Step(void) {
 	UpdateBasisData();
+	//int cut_id = GetLeastFractionalIndex();
+	//int cut_id = GetMostFractionalIndex();
 	int cut_id = GetRandomIndex();
 	//int cut_id = *frac_int_vars.begin();
 

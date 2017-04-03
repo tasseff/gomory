@@ -1,5 +1,5 @@
 { "parameters": {
-		"model": "naive_versus_lex_ex.lp",
+		"model": "worst_case_pure.lp",
 		"solution": "solution.sol"
 	}
 }

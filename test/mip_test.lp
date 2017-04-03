@@ -12,5 +12,5 @@ bounds
  -inf <= x <= inf
  -inf <= y <= inf
 general
- x
+x 
 end

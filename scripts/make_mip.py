@@ -19,11 +19,11 @@ __email__ = "byron@tasseff.com"
 __status__ = "Development"
 
 def make_mip(num_constraints, num_variables, pure, output_path):
-    # Create a feasible problem with constraints A' y <= c.
-    A = np.random.randint(-2, 2, size = (num_variables, num_constraints))
-    x = np.random.rand(num_constraints, 1)
-    b = np.round(np.matmul(A, x))
-    c = np.random.randint(0, 10, size = (num_constraints, 1))
+    # Create a feasible maximization problem with constraints A' y <= c.
+    A = np.random.randint(-5, 5, size = (num_variables, num_constraints))
+    x = np.random.randint(0, 10, size = (num_constraints, 1))
+    b = np.matmul(A, x)
+    c = np.random.randint(0, num_variables, size = (num_constraints, 1))
     A_T = A.transpose()
 
     model = grb.Model(os.path.basename(output_path))
