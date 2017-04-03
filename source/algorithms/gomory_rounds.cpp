@@ -5,7 +5,9 @@ GomoryRounds::GomoryRounds(const rapidjson::Value& root) : GomoryNaive(root) { }
 
 int GomoryRounds::AddPureRounds(void) {
 	std::set<int>::iterator it;
+
 	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
+		AddPureCut(*it);
 		int cut_var_index = *it;
 		for (unsigned int i = 0; i < basis_size; i++) {
 			r(i) = -floor(B_inv(i, cut_var_index));
@@ -27,6 +29,7 @@ int GomoryRounds::AddPureRounds(void) {
 		grb_error = GRBaddconstr(model, num_vars, cut_coeff_ids, cut_coeff_vals,
 			GRB_LESS_EQUAL, rhs, NULL);
 	}
+
 	return frac_int_vars.size();
 }
 

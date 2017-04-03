@@ -215,7 +215,7 @@ void GomoryNaive::PrintStep(void) {
 	double B_det = B.determinant();
 	double current_obj;
 	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &current_obj);
-	std::cout << num_cuts << "\t" << B.determinant() << "\t" << current_obj << std::endl;
+	std::cout << num_cuts << "\t" << B.determinant() << "\t" << current_obj << "\t" << num_constrs << std::endl;
 }
 
 int GomoryNaive::Step(void) {

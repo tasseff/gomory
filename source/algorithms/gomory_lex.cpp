@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 #include "gomory_lex.h"
 
 GomoryLex::GomoryLex(const rapidjson::Value& root) : GomoryNaive(root) {
@@ -6,6 +7,7 @@ GomoryLex::GomoryLex(const rapidjson::Value& root) : GomoryNaive(root) {
 	del_lex_constr_ids = (int*)malloc(num_vars*sizeof(int));
 	grb_error = GRBgetdblattrlist(model, GRB_DBL_ATTR_OBJ, num_vars,
 	                              cut_coeff_ids, original_obj_coeffs);
+	grb_error = GRBgetintattr(model, "NumConstrs", &original_num_constrs);
 }
 
 GomoryLex::~GomoryLex(void) {
@@ -54,7 +56,32 @@ void GomoryLex::LexSimplex(void) {
 	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
 	grb_error = GRBoptimize(model);
 }
+
+int GomoryLex::PurgeCuts(void) {
+	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
+	std::vector<int> purge_cut_ids;
+
+	for (int i = original_num_constrs; i < num_constrs; i++) {
+		double constraint_slack;
+		grb_error = GRBgetdblattrelement(model, "Slack", i, &constraint_slack);
+
+		if (fabs(constraint_slack) > 1.0e-6) {
+			purge_cut_ids.push_back(i);
+		}
+	}
+
+	grb_error = GRBdelconstrs(model, (int)purge_cut_ids.size(), purge_cut_ids.data());
+	grb_error = GRBoptimize(model);
+	return purge_cut_ids.size();
+}
+
 int GomoryLex::Step(void) {
+	if (objective_value != old_objective_value || iter_since_purge >= 1000) {
+		iter_since_purge = 0;
+		int num_constrs_purged = PurgeCuts();
+		old_objective_value = objective_value;
+	}
+
 	UpdateBasisData();
 	//int cut_id = GetLeastFractionalIndex();
 	//int cut_id = GetMostFractionalIndex();
@@ -72,13 +99,18 @@ int GomoryLex::Step(void) {
 	}
 
 	grb_error = GRBoptimize(model);
+	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
+	iter_since_purge++;
 
 	return UpdateVariableData();
 }
 
 void GomoryLex::Run(void) {
 	grb_error = GRBoptimize(model);
+	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
+	old_objective_value = objective_value;
 	int num_frac_vars = UpdateVariableData();
+	iter_since_purge = 0;
 
 	while (num_frac_vars > 0) {
 		num_frac_vars = Step();
