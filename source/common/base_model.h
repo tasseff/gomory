@@ -3,6 +3,10 @@
 #include <memory>
 #include "document.h"
 
+#ifndef MAX_CUTS
+#define MAX_CUTS 10000
+#endif
+
 extern "C" {
 	#include <gurobi_c.h>
 }

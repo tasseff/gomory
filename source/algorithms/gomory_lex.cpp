@@ -65,7 +65,7 @@ int GomoryLex::PurgeCuts(void) {
 		double constraint_slack;
 		grb_error = GRBgetdblattrelement(model, "Slack", i, &constraint_slack);
 
-		if (fabs(constraint_slack) > 1.0e-9) {
+		if (fabs(constraint_slack) > 1.0e-8) {
 			purge_cut_ids.push_back(i);
 		}
 	}
@@ -112,7 +112,7 @@ void GomoryLex::Run(void) {
 	int num_frac_vars = UpdateVariableData();
 	iter_since_purge = 0;
 
-	while (num_frac_vars > 0) {
+	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
 		num_frac_vars = Step();
 		PrintStep();
 	}
