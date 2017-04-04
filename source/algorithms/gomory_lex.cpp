@@ -65,7 +65,7 @@ int GomoryLex::PurgeCuts(void) {
 		double constraint_slack;
 		grb_error = GRBgetdblattrelement(model, "Slack", i, &constraint_slack);
 
-		if (fabs(constraint_slack) > 1.0e-6) {
+		if (fabs(constraint_slack) > 1.0e-9) {
 			purge_cut_ids.push_back(i);
 		}
 	}
@@ -76,7 +76,7 @@ int GomoryLex::PurgeCuts(void) {
 }
 
 int GomoryLex::Step(void) {
-	if (objective_value != old_objective_value || iter_since_purge >= original_num_constrs * 10) {
+	if (objective_value != old_objective_value) {
 		iter_since_purge = 0;
 		int num_constrs_purged = PurgeCuts();
 		old_objective_value = objective_value;
