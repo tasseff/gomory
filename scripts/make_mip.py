@@ -54,12 +54,12 @@ def make_mip(num_constraints, num_variables, pure, output_path):
     model.update()
     model.optimize()
     status = model.Status
-
-    if status != grb.GRB.OPTIMAL:
-        print('Generated problem is infeasible.')
-        sys.exit(1)
-
+    obj = model.ObjVal
+    if status != grb.GRB.OPTIMAL or (obj >= 0 - .0000000001 and obj <= 0 + .0000000001):
+        return (False, -1)
     model.write(output_path)
+    return (True, obj)
+
 
 def make_mips(num_problems, num_constraints, num_variables, pure, output_path):
     if num_problems == 1:
