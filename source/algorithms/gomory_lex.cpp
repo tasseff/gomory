@@ -65,7 +65,7 @@ int GomoryLex::PurgeCuts(void) {
 		double constraint_slack;
 		grb_error = GRBgetdblattrelement(model, "Slack", i, &constraint_slack);
 
-		if (fabs(constraint_slack) > 1.0e-8) {
+		if (constraint_slack > 1.0e-9) {
 			purge_cut_ids.push_back(i);
 		}
 	}
@@ -83,19 +83,15 @@ int GomoryLex::Step(void) {
 	}
 
 	UpdateBasisData();
-	//int cut_id = GetLeastFractionalIndex();
-	//int cut_id = GetMostFractionalIndex();
-	int cut_id = GetRandomIndex();
-	//int cut_id = *frac_int_vars.begin();
 
 	if (num_vars == num_int_vars) {
 		// If all of the variables were integer, use the pure integer cut.
 		LexSimplex();
-		num_cuts += AddPureCut(cut_id);
+		num_cuts += AddPureCut(GetRandomIndex());
 	} else {
 		// Otherwise, use the mixed-integer cut.
 		LexSimplex();
-		num_cuts += AddMixedCut(cut_id);
+		num_cuts += AddMixedCut(GetRandomIndex());
 	}
 
 	grb_error = GRBoptimize(model);
