@@ -112,7 +112,7 @@ void GomoryLex::Run(void) {
 	int num_frac_vars = UpdateVariableData();
 	iter_since_purge = 0;
 
-	while (num_frac_vars > 0) {
+	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
 		num_frac_vars = Step();
 		PrintStep();
 	}
