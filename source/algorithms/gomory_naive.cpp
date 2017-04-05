@@ -248,7 +248,7 @@ int GomoryNaive::Step(void) {
 void GomoryNaive::Run(void) {
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
-
+  PrintStep();
 	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
 		num_frac_vars = Step();
 		PrintStep();
