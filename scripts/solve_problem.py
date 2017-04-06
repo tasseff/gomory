@@ -24,6 +24,8 @@ def main(folder):
     results_store = {}
     pure = True
     for i in range(2,13):
+        results_store = {}
+        results_store["num_starting_vars"] = i
         j = 0
         results_file_path_naive = folder + "/results_naive_" + str(i) + ".csv"
         results_file_path_lex = folder + "/results_lex_" + str(i) + ".csv"
@@ -31,19 +33,41 @@ def main(folder):
         results_file_path_lex_rounds = folder + "/results_lexrounds_" + str(i) + ".csv"
         create_results_files([results_file_path_naive, results_file_path_rounds, 
             results_file_path_lex, results_file_path_lex_rounds])
-        while(j < 100):
+        while(j < 3):
             new_folder_path = folder + "/ex_" + str(i) + "_" + str(j)
             if not os.path.exists(new_folder_path):
-                os.makedirs(new_folder_path)
+                os.makedirs(new_folder_path)            
             (feasible, obj) = make_mip.make_mip(i, i, pure, 
                 new_folder_path + "/generated_problem.lp")
             if feasible:
                 j += 1
-            write_temp_input(new_folder_path)
-            run_gomory(new_folder_path)
-            output_results(new_folder_path, results_file_path_naive,
-                results_file_path_rounds, results_file_path_lex,
-                results_file_path_lex_rounds)
+                write_temp_input(new_folder_path)
+                if is_trivial(new_folder_path, obj):
+                    print("trivial")
+                #   continue
+                run_gomory(new_folder_path)
+                output_intermediate_results(new_folder_path, results_file_path_naive,
+                    results_file_path_rounds, results_file_path_lex,
+                    results_file_path_lex_rounds, obj, j, results_store)
+        write_results_store(results_store)
+        if i == 4:
+            sys.exit()
+    return 0
+
+
+def write_results_store(results_store):
+    for solve_type in results_store:
+        path = get_bar_graph_path(solve_type)
+        write_bar_graph_data(path, results_store, solve_type)
+    return 0
+
+
+def is_trivial(folder, actual_objective):
+    rc = subprocess.check_call(["./RUN_NAIVE.sh", folder])
+    (num_cuts, _,_,_,_) = get_stats(folder + "/naive.txt", actual_objective)
+    if num_cuts == 0:
+        return True
+    return False
 
 
 def create_results_files(file_array):
@@ -53,43 +77,81 @@ def create_results_files(file_array):
 
 
 def write_first_line(fn):
-    file = open(fn, 'w')
-    file.write('problem_num, num_cuts, det, obj, num_const\n')
-    file.close()
+    f = open(fn, 'w')
+    f.write('problem_num, num_cuts,num_constr,det,obj\n')
+    f.close()
 
-def output_results(new_folder_path, results_file_path_naive, results_file_path_lex,
-    results_file_path_rounds, results_file_path_lex_rounds):
-    lex_last = get_stats(new_folder_path + "/lex.txt")
-    round_lex_last = get_stats(new_folder_path + "/rounds_lex.txt")
-    naive_last = get_stats(new_folder_path + "/naive.txt")
-    rounds_last = get_stats(new_folder_path + "/rounds.txt")
-    write_data_line(results_file_path_naive, naive_last)
-    write_data_line(results_file_path_naive, naive_last)
-    write_data_line(results_file_path_naive, naive_last)
-    write_data_line(results_file_path_naive, naive_last)
+
+def output_intermediate_results(new_folder_path, results_file_path_naive, results_file_path_lex,
+    results_file_path_rounds, results_file_path_lex_rounds, actual_objective, j, results_store):
+    filepaths = [results_file_path_naive, results_file_path_lex, 
+        results_file_path_rounds, results_file_path_lex_rounds]
+    lex_last = get_stats(new_folder_path + "/lex.txt", actual_objective)
+    rounds_lex_last = get_stats(new_folder_path + "/rounds_lex.txt", actual_objective)
+    naive_last = get_stats(new_folder_path + "/naive.txt", actual_objective)
+    rounds_last = get_stats(new_folder_path + "/rounds.txt", actual_objective)
+    last_lines = [naive_last, lex_last, rounds_last, rounds_lex_last]
+    methods = ["naive", "lex", "rounds", "lex_rounds"]
+    for m in methods:
+        if m not in results_store.keys():
+            results_store[m] = 0
+    if naive_last[-1] == True : results_store["naive"]  += 1
+    if lex_last[-1] == True : results_store["lex"]  += 1
+    if rounds_last[-1] == True : results_store["rounds"]  += 1
+    if rounds_lex_last[-1] == True : results_store["lex_rounds"]  += 1
+    for i, path in enumerate(filepaths):
+        write_data_line(path, last_lines[i], j)
     return 0
 
 
-def write_data_line(filepath, line):
-    line_to_write = line[0] + ","  + line[1] + "," + line[2] + "," + line[3] + "\n"
-    file = open(filepath, 'a')
+def write_bar_graph_data(bar_path, results_store, solve_method):
+    num_starting_vars = results_store["num_starting_vars"]
+    data_to_write = str(num_starting_vars) + "," + str(results_store[solve_method]) + "\n"
+    if not os.path.exists(bar_path):
+        f = open(bar_path, 'w')
+        f.write('num_starting_vars,num_finished\n')
+        f.close()
+    f = open(bar_path, "a")
+    f.write(data_to_write)
+    f.close()
+
+
+def get_bar_graph_path(solve_method):
+    return "bar_graph_" + solve_method + ".csv"
+
+
+def write_data_line(filepath, line, j):
+    line_to_write = str(str(j) + "," + line[0]) + ","  + str(line[1]) + "," + str(
+            line[2]) + "," + str(line[3])+ "\n"
+    f = open(filepath, 'a')
     f.write(line_to_write)
     f.close()
 
 
-def get_stats(filepath):
+def get_stats(filepath, actual_objective):
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
     max_det = 0
-    for line in lines:
-        split_line = line.split("\t")
-        det = split_line[1]
-        if abs(det) > max_det:
-            max_det = abs(det)
-    obj = lines[-1].split("\t")[2]
-    num_cuts = lines[-1].split("-t")[0]
-    num_constr = lines[-1].split("-t")[3]
-    return(num_cuts, max_det, obj, num_constr) 
+    for i,line in enumerate(lines):
+        if i == 0:
+            continue
+        split_line = line.split(",")
+        det = split_line[2]
+        if abs(float(det)) > max_det:
+            max_det = abs(float(det)) 
+    last_line_split = lines[-1].split(",")
+    obj = last_line_split[3]
+    num_cuts = last_line_split[0]
+    num_constr = last_line_split[1]
+    achieved_solution = test_for_solution(num_cuts, obj, actual_objective)
+    return(num_cuts, num_constr, max_det, obj, achieved_solution) 
+
+
+def test_for_solution(num_cuts, obj, actual_objective):
+    test = abs(float(obj) - float(actual_objective))
+    if test < .0000001 and int(num_cuts) < 10000:
+        return True
+    return False
 
 
 def read_last_line(filepath):
@@ -107,7 +169,7 @@ def run_gomory(folder):
 def write_temp_input(folder):
     d = {}
     d["parameters"] = {}
-    d["parameters"]["model"] = "generated_problem.lp"
+    d["parameters"]["model"] = folder + "/generated_problem.lp"
     d["parameters"]["solution"] = "solution.sol"
     with open(folder + '/temp.json', 'w') as outfile:
         json.dump(d, outfile)
