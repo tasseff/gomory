@@ -33,7 +33,7 @@ def main(folder):
         results_file_path_lex_rounds = folder + "/results_lexrounds_" + str(i) + ".csv"
         create_results_files([results_file_path_naive, results_file_path_rounds, 
             results_file_path_lex, results_file_path_lex_rounds])
-        while(j < 3):
+        while(j < 100):
             new_folder_path = folder + "/ex_" + str(i) + "_" + str(j)
             if not os.path.exists(new_folder_path):
                 os.makedirs(new_folder_path)            
@@ -44,14 +44,12 @@ def main(folder):
                 write_temp_input(new_folder_path)
                 if is_trivial(new_folder_path, obj):
                     print("trivial")
-                #   continue
+                    continue
                 run_gomory(new_folder_path)
                 output_intermediate_results(new_folder_path, results_file_path_naive,
                     results_file_path_rounds, results_file_path_lex,
                     results_file_path_lex_rounds, obj, j, results_store)
         write_results_store(results_store)
-        if i == 4:
-            sys.exit()
     return 0
 
 
