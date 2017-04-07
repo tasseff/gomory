@@ -35,7 +35,7 @@ def main(folder, num):
     results_file_path_lex_rounds = folder + "/results_lexrounds_" + str(i) + ".csv"
     create_results_files([results_file_path_naive, results_file_path_rounds, 
         results_file_path_lex, results_file_path_lex_rounds])
-    while(j < 100):
+    while(j < 50):
     	new_folder_path = folder + "/ex_" + str(i) + "_" + str(j)
         if not os.path.exists(new_folder_path):
             os.makedirs(new_folder_path)
@@ -55,13 +55,13 @@ def main(folder, num):
                     results_file_path_rounds, results_file_path_lex,
                     results_file_path_lex_rounds, obj, j, results_store)
     print("writing results")
-    write_results_store(results_store)
+    write_results_store(results_store, num)
     return 0
 
 
-def write_results_store(results_store):
+def write_results_store(results_store, num):
     for solve_type in results_store:
-        path = get_bar_graph_path(solve_type)
+        path = get_bar_graph_path(solve_type, num)
         write_bar_graph_data(path, results_store, solve_type)
     return 0
 
@@ -120,8 +120,8 @@ def write_bar_graph_data(bar_path, results_store, solve_method):
     f.close()
 
 
-def get_bar_graph_path(solve_method):
-    return "bar_graph_" + solve_method + ".csv"
+def get_bar_graph_path(solve_method, i):
+    return "bar_graph_" + solve_method + "_" + str(i) + ".csv"
 
 
 def write_data_line(filepath, line, j):
@@ -153,7 +153,7 @@ def get_stats(filepath, actual_objective):
 
 def test_for_solution(num_cuts, obj, actual_objective):
     test = abs(float(obj) - float(actual_objective))
-    if test < .0000001 and int(num_cuts) < 10000:
+    if test < .0000001 and int(num_cuts) < 2500:
         return True
     return False
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
                         help = 'output folder path')
     parser.add_argument('-i', '--num', type=int, nargs=1,
 			metavar='num',
-			help == 'number of variables')
+			help = 'number of variables')
     args = parser.parse_args()
 
     folder = 'temp'
