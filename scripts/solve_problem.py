@@ -3,7 +3,9 @@ import argparse
 import os
 import json
 import subprocess
-
+sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7')
+sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/')
+sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/gurobipy')
 import gurobipy as grb
 
 import make_mip
@@ -18,38 +20,42 @@ __email__ = ""
 __status__ = "Development"
 
 
-def main(folder):
+def main(folder, num):
     if not os.path.exists(folder):
         os.makedirs(folder)
+    i = num
     results_store = {}
     pure = True
-    for i in range(2,13):
-        results_store = {}
-        results_store["num_starting_vars"] = i
-        j = 0
-        results_file_path_naive = folder + "/results_naive_" + str(i) + ".csv"
-        results_file_path_lex = folder + "/results_lex_" + str(i) + ".csv"
-        results_file_path_rounds = folder + "/results_rounds_" + str(i) + ".csv"
-        results_file_path_lex_rounds = folder + "/results_lexrounds_" + str(i) + ".csv"
-        create_results_files([results_file_path_naive, results_file_path_rounds, 
-            results_file_path_lex, results_file_path_lex_rounds])
-        while(j < 100):
-            new_folder_path = folder + "/ex_" + str(i) + "_" + str(j)
-            if not os.path.exists(new_folder_path):
-                os.makedirs(new_folder_path)            
-            (feasible, obj) = make_mip.make_mip(i, i, pure, 
-                new_folder_path + "/generated_problem.lp")
-            if feasible:
-                j += 1
-                write_temp_input(new_folder_path)
-                if is_trivial(new_folder_path, obj):
-                    print("trivial")
-                    continue
-                run_gomory(new_folder_path)
-                output_intermediate_results(new_folder_path, results_file_path_naive,
+    results_store = {}
+    results_store["num_starting_vars"] = i
+    j = 0
+    results_file_path_naive = folder + "/results_naive_" + str(i) + ".csv"
+    results_file_path_lex = folder + "/results_lex_" + str(i) + ".csv"
+    results_file_path_rounds = folder + "/results_rounds_" + str(i) + ".csv"
+    results_file_path_lex_rounds = folder + "/results_lexrounds_" + str(i) + ".csv"
+    create_results_files([results_file_path_naive, results_file_path_rounds, 
+        results_file_path_lex, results_file_path_lex_rounds])
+    while(j < 100):
+    	new_folder_path = folder + "/ex_" + str(i) + "_" + str(j)
+        if not os.path.exists(new_folder_path):
+            os.makedirs(new_folder_path)
+	print("generating problem")            
+        (feasible, obj) = make_mip.make_mip(i, i, pure, 
+            new_folder_path + "/generated_problem.lp")
+        if feasible:
+            write_temp_input(new_folder_path)
+            if is_trivial(new_folder_path, obj):
+                print("trivial")
+                continue
+	    j += 1
+            print("running gomory cuts")
+	    run_gomory(new_folder_path)
+            print("outputing results")
+            output_intermediate_results(new_folder_path, results_file_path_naive,
                     results_file_path_rounds, results_file_path_lex,
                     results_file_path_lex_rounds, obj, j, results_store)
-        write_results_store(results_store)
+    print("writing results")
+    write_results_store(results_store)
     return 0
 
 
@@ -188,10 +194,15 @@ if __name__ == "__main__":
     parser.add_argument('-f', '--folder', type=str, nargs=1,
                         metavar= 'folder',
                         help = 'output folder path')
-   
+    parser.add_argument('-i', '--num', type=int, nargs=1,
+			metavar='num',
+			help == 'number of variables')
     args = parser.parse_args()
 
     folder = 'temp'
+    num = 2
+    if args.num:
+	num = args.num[0]
     if args.folder:
         folder = args.folder[0]
-    main(folder)
+    main(folder, num)

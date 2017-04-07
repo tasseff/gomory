@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
 """make_mip.py: Generate random feasible mixed-integer programs."""
-
+import sys
 import argparse
+sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7')
+sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/')
+sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/gurobipy')
 import gurobipy as grb
 import numpy as np
 import os
