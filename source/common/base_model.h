@@ -4,7 +4,7 @@
 #include "document.h"
 
 #ifndef MAX_CUTS
-#define MAX_CUTS 10000
+#define MAX_CUTS 2500
 #endif
 
 extern "C" {
