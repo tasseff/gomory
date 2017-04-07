@@ -55,6 +55,7 @@ def make_mip(num_constraints, num_variables, pure, output_path):
         model.addConstr(lhs, grb.GRB.LESS_EQUAL, c[i])
 
     model.update()
+    model.setParam("TimeLimit", 60)
     model.optimize()
     status = model.Status
     obj = model.ObjVal
