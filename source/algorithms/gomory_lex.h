@@ -11,7 +11,7 @@ public:
 	int Step(void);
 
 protected:
-	void LexSimplex(void);
+	int LexSimplex(void);
 	int original_num_constrs;
 	int iter_since_purge;
 	double objective_value;

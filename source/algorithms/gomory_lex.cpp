@@ -15,9 +15,9 @@ GomoryLex::~GomoryLex(void) {
 	free(original_obj_coeffs);
 }
 
-void GomoryLex::LexSimplex(void) {
+int GomoryLex::LexSimplex(void) {
 	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
-
+	int status;
 	double sol_i;
 	grb_error = GRBgetdblattrelement(model, "X", 0, &sol_i);
 
@@ -36,7 +36,11 @@ void GomoryLex::LexSimplex(void) {
 		}
 
 		grb_error = GRBoptimize(model);
-
+		grb_error = GRBgetintattr(model, "Status", &status);
+		if (status != 2) {
+			std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+			return -1;
+		}
 		int id[1] = {j};
 		double vid[1] = {1.0};
 
@@ -47,7 +51,11 @@ void GomoryLex::LexSimplex(void) {
 	}
 
 	grb_error = GRBoptimize(model);
-
+	grb_error = GRBgetintattr(model, "Status", &status);
+	if (status != 2) {
+		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+		return -1;
+	}
 	// Restore the objective to that of the original problem.
 	for (unsigned int j = 0; j < num_vars; j++) {
 		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_obj_coeffs[j]);
@@ -55,6 +63,12 @@ void GomoryLex::LexSimplex(void) {
 
 	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
 	grb_error = GRBoptimize(model);
+	grb_error = GRBgetintattr(model, "Status", &status);
+	if(status != 2) {
+		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+		return -1;
+	}
+	return 0;
 }
 
 int GomoryLex::PurgeCuts(void) {
@@ -86,32 +100,48 @@ int GomoryLex::Step(void) {
 
 	if (num_vars == num_int_vars) {
 		// If all of the variables were integer, use the pure integer cut.
-		LexSimplex();
+		int status = LexSimplex();
+		if (status != 2) {
+			std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX
+								<< std::endl;
+			return -1;
+		}
 		num_cuts += AddPureCut(GetRandomIndex());
 	} else {
 		// Otherwise, use the mixed-integer cut.
-		LexSimplex();
+		int status = LexSimplex();
+		if (status != 2) {
+			std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX
+								<< std::endl;
+			return -1;
+		}
 		num_cuts += AddMixedCut(GetRandomIndex());
 	}
 
 	grb_error = GRBoptimize(model);
-	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
+  int status;
+  grb_error = GRBgetintattr(model, "Status", &status);
 	iter_since_purge++;
-
-	return UpdateVariableData();
+  if (status == 2) {
+    grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
+    return UpdateVariableData();
+  }
+  std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+  return -1;
 }
 
 void GomoryLex::Run(void) {
-	grb_error = GRBoptimize(model);
-	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
-	old_objective_value = objective_value;
-	int num_frac_vars = UpdateVariableData();
-	iter_since_purge = 0;
+  grb_error = GRBoptimize(model);
+  grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
+  old_objective_value = objective_value;
+  int num_frac_vars = UpdateVariableData();
+  iter_since_purge = 0;
   PrintStep();
-	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
-		num_frac_vars = Step();
-		PrintStep();
-	}
-
-	grb_error = GRBwrite(model, solution_path.c_str());
+  while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
+    num_frac_vars = Step();
+    if(num_frac_vars >= 0) {
+      PrintStep();
+    }
+  }
+  grb_error = GRBwrite(model, solution_path.c_str());
 }

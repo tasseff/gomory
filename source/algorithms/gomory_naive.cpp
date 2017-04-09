@@ -22,6 +22,9 @@ GomoryNaive::GomoryNaive(const rapidjson::Value& root) : BaseModel(root) {
 	std::string model_path = root["model"].GetString();
 	grb_error = GRBreadmodel(env, model_path.c_str(), &model);
 
+  // set a timeout for optimizing the model
+  grb_error = GRBsetintattr(model, "TimeLimit", 60*10);
+
 	// Convert the read-in model to a linear program.
 	SetupModel();
 }
@@ -226,23 +229,28 @@ void GomoryNaive::PrintStep(void) {
 }
 
 int GomoryNaive::Step(void) {
-	UpdateBasisData();
-	//int cut_id = *frac_int_vars.begin();
-	int cut_id = GetRandomIndex();
+  UpdateBasisData();
+  //int cut_id = *frac_int_vars.begin();
+  int cut_id = GetRandomIndex();
 
-	if (num_vars == num_int_vars) {
-		// If all of the variables were integer, use the pure integer cut.
-		num_cuts += AddPureCut(cut_id);
-		//num_cuts += AddMixedCut(cut_id);
-	} else {
-		// Otherwise, use the mixed-integer cut.
-		num_cuts += AddMixedCut(cut_id);
-	}
+  if (num_vars == num_int_vars) {
+    // If all of the variables were integer, use the pure integer cut.
+    num_cuts += AddPureCut(cut_id);
+    //num_cuts += AddMixedCut(cut_id);
+  } else {
+    // Otherwise, use the mixed-integer cut.
+    num_cuts += AddMixedCut(cut_id);
+  }
 
-	grb_error = GRBoptimize(model);
-	int num_frac_vars = UpdateVariableData();
-
-	return num_frac_vars;
+  grb_error = GRBoptimize(model);
+  int status;
+  grb_error = GRBgetintattr(model, "Status", &status);
+  if (status == 2) {
+    int num_frac_vars = UpdateVariableData();
+    return num_frac_vars;
+  }
+  std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+  return -1;
 }
 
 void GomoryNaive::Run(void) {
@@ -251,9 +259,10 @@ void GomoryNaive::Run(void) {
   PrintStep();
 	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
 		num_frac_vars = Step();
-		PrintStep();
+    if(num_frac_vars >= 0) {
+      PrintStep();
+    }
 	}
-
 	grb_error = GRBwrite(model, solution_path.c_str());
 }
 

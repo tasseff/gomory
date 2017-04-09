@@ -33,8 +33,13 @@ int GomoryRounds::Step(void) {
 	}
 
 	grb_error = GRBoptimize(model);
-
-	return UpdateVariableData();
+  int status;
+  grb_error = GRBgetintattr(model, "Status", &status);
+  if(status == 2) {
+    return UpdateVariableData();
+  }
+  std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+  return -1;
 }
 
 void GomoryRounds::Run(void) {
@@ -43,7 +48,9 @@ void GomoryRounds::Run(void) {
 	PrintStep();
 	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
 		num_frac_vars = Step();
-		PrintStep();
+    if(num_frac_vars >= 0) {
+		  PrintStep();
+    }
 	}
 
 	grb_error = GRBwrite(model, solution_path.c_str());

@@ -4,7 +4,12 @@
 int GomoryRoundsLex::AddPureRounds(void) {
 	std::set<int>::iterator it;
 	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
-		LexSimplex();
+		int status = LexSimplex();
+    if (status != 2) {
+      std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX
+                << std::endl;
+      return -1;
+    }
 		AddPureCut(*it);
 		grb_error = GRBoptimize(model);
 	}
@@ -15,7 +20,12 @@ int GomoryRoundsLex::AddPureRounds(void) {
 int GomoryRoundsLex::AddMixedRounds(void) {
 	std::set<int>::iterator it;
 	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
-		LexSimplex();
+		int status = LexSimplex();
+    if (status != 2) {
+      std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX
+                << std::endl;
+      return -1;
+    }
 		AddMixedCut(*it);
 		grb_error = GRBoptimize(model);
 	}
@@ -24,28 +34,43 @@ int GomoryRoundsLex::AddMixedRounds(void) {
 }
 
 int GomoryRoundsLex::Step(void) {
-	if (objective_value != old_objective_value) {
-		iter_since_purge = 0;
-		int num_constrs_purged = PurgeCuts();
-		old_objective_value = objective_value;
-	}
+  if (objective_value != old_objective_value) {
+    iter_since_purge = 0;
+    int num_constrs_purged = PurgeCuts();
+    old_objective_value = objective_value;
+  }
 
-	UpdateBasisData();
+  UpdateBasisData();
 
-	if (num_vars == num_int_vars) {
-		// If all of the variables were integer, use the pure integer cut.
-		num_cuts += AddPureRounds();
-		//num_cuts += AddMixedRounds();
-	} else {
-		// Otherwise, use the mixed-integer cut.
-		num_cuts += AddMixedRounds();
-	}
+  if (num_vars == num_int_vars) {
+    // If all of the variables were integer, use the pure integer cut.
+    int cuts = AddPureRounds();
+    if(cuts < 0) {
+      std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+      return -1;
+    }
+    num_cuts += cuts;
+    //num_cuts += AddMixedRounds();
+  } else {
+    // Otherwise, use the mixed-integer cut.
+    int cuts = AddMixedRounds();
+    if(cuts < 0) {
+      std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+      return -1;
+    }
+    num_cuts += cuts;
+  }
 
-	grb_error = GRBoptimize(model);
-	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
-	iter_since_purge++;
-
-	return UpdateVariableData();
+  grb_error = GRBoptimize(model);
+  int status;
+  grb_error = GRBgetintattr(model, "Status", &status);
+  if (status == 2) {
+    grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
+    iter_since_purge++;
+    return UpdateVariableData();
+  }
+  std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+  return -1;
 }
 
 GomoryRoundsLex::GomoryRoundsLex(const rapidjson::Value& root) : GomoryLex(root) {}
@@ -59,7 +84,9 @@ void GomoryRoundsLex::Run(void) {
   PrintStep();
 	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
 		num_frac_vars = Step();
-		PrintStep();
+    if(num_frac_vars >= 0) {
+      PrintStep();
+    }
 	}
 
 	grb_error = GRBwrite(model, solution_path.c_str());
