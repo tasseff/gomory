@@ -1,5 +1,12 @@
 { "parameters": {
 		"model": "worst_case_pure.lp",
-		"solution": "solution.sol"
+		"solution": "solution.sol",
+		"maxCuts": 10000,
+		"awayEpsilon": 0.01,
+		"purgeEpsilon": 1.0e-9,
+		"useRounds": true,
+		"useLexicographic": true,
+		"useMixedCut": true,
+		"usePurging": true
 	}
 }

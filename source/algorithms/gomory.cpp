@@ -4,24 +4,17 @@
 #include <vector>
 #include "gomory.h"
 
-#define AWAY 1.0e-2
-
 Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
+	// Load required user-defined parameters.
+	max_cuts = root["maxCuts"].GetInt();
 	away_epsilon = root["awayEpsilon"].GetDouble();
+	purge_epsilon = root["purgeEpsilon"].GetDouble();
+	use_lex = root["useLexicographic"].GetBool();
 	use_rounds = root["useRounds"].GetBool();
+	use_fgmi = root["useMixedCut"].GetBool();
+	use_purge = root["usePurging"].GetBool();
 
 	grb_error = GRBloadenv(&env, "gurobi.log");
-
-	if (root["gurobiPresolve"].GetBool() == false)
-		grb_error = GRBsetintparam(env, GRB_INT_PAR_PRESOLVE, 0);
-	if (root["gurobiCuts"].GetBool() == false)
-		grb_error = GRBsetintparam(env, GRB_INT_PAR_CUTS, 0);
-	if (root["gurobiOutput"].GetBool() == false)
-		grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
-	if (root["gurobiBB"].GetBool() == false)
-		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_NODELIMIT, 0.0);
-	if (root["gurobiHeuristics"].GetBool() == false)
-		grb_error = GRBsetdblparam(env, GRB_DBL_PAR_HEURISTICS, 0.0);
 
 	// Ensure Gurobi behaves only as a very accurate linear programming solver.
 	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_BARCONVTOL, 0.0);
@@ -41,6 +34,48 @@ Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
 
 	// Convert the read-in model to a linear program.
 	SetupModel();
+}
+
+void Gomory::LexSimplex(void) {
+	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
+
+	double sol_i;
+	grb_error = GRBgetdblattrelement(model, "X", 0, &sol_i);
+
+	int id[1] = {0};
+	double vid[1] = {1.0};
+	grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_i, NULL);
+	del_lex_constr_ids[0] = num_constrs;
+
+	for (int j = 1; j < num_vars; j++) {
+		for (int k = 0; k < num_vars; k++) {
+			if (k == j) {
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
+			} else {
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
+			}
+		}
+
+		grb_error = GRBoptimize(model);
+
+		int id[1] = {j};
+		double vid[1] = {1.0};
+
+		double sol_j;
+		grb_error = GRBgetdblattrelement(model, "X", j, &sol_j);
+		grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_j, NULL);
+		del_lex_constr_ids[j] = num_constrs + j;
+	}
+
+	grb_error = GRBoptimize(model);
+
+	// Restore the objective to that of the original problem.
+	for (int j = 0; j < num_vars; j++) {
+		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_obj_coeffs[j]);
+	}
+
+	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
+	grb_error = GRBoptimize(model);
 }
 
 void Gomory::SetupModel(void) {
@@ -93,7 +128,7 @@ int Gomory::UpdateVariableData(void) {
 	grb_error = GRBgetdblattrlist(model, "X", num_int_vars, int_var_ids, int_var_vals);
 
 	for (int k = 0; k < num_int_vars; k++) {
-		if (fabs(int_var_vals[k] - round(int_var_vals[k])) >= AWAY) {
+		if (fabs(int_var_vals[k] - round(int_var_vals[k])) >= away_epsilon) {
 			// Add the variable to the set if it's fractional.
 			frac_int_vars.insert(int_var_ids[k]);
 		} else {
@@ -136,8 +171,12 @@ void Gomory::UpdateBasisData(void) {
 }
 
 int Gomory::AddPureCut(int cut_var_index) {
+	if (use_lex) {
+		LexSimplex();
+	}
+
 	// Compute r.
-	for (unsigned int i = 0; i < basis_size; i++) {
+	for (int i = 0; i < basis_size; i++) {
 		r(i) = -floor(B_inv(i, cut_var_index));
 	}
 	
@@ -145,7 +184,7 @@ int Gomory::AddPureCut(int cut_var_index) {
 	double c_beta_r = c_beta.transpose() * r;
 	a_beta_r = B * r;
 
-	for (unsigned int i = 0; i < num_vars; i++) {
+	for (int i = 0; i < num_vars; i++) {
 		cut_coeff_vals[i] = a_beta_r(i);
 	}
 
@@ -157,30 +196,16 @@ int Gomory::AddPureCut(int cut_var_index) {
 	grb_error = GRBaddconstr(model, num_vars, cut_coeff_ids, cut_coeff_vals,
 	                         GRB_LESS_EQUAL, rhs, NULL);
 
+	if (use_lex) {
+		grb_error = GRBoptimize(model);
+	}
+
 	// Return number of generated cuts.
 	return 1;
 }
 
-int Gomory::AddPureRounds(void) {
-	std::set<int>::iterator it;
-	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
-		AddPureCut(*it);
-	}
-
-	return frac_int_vars.size();
-}
-
-int Gomory::AddMixedRounds(void) {
-	std::set<int>::iterator it;
-	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
-		AddMixedCut(*it);
-	}
-
-	return frac_int_vars.size();
-}
-
 int Gomory::AddMixedCut(int cut_var_index) {
-	for (unsigned int i = 0; i < basis_size; i++) {
+	for (int i = 0; i < basis_size; i++) {
 		r(i) = fmax(0.0, -floor(B_inv(i, cut_var_index)));
 	}
 
@@ -190,7 +215,7 @@ int Gomory::AddMixedCut(int cut_var_index) {
 	double y_bar_i;
 	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
 
-	for (unsigned int i = 0; i < num_vars; i++) {
+	for (int i = 0; i < num_vars; i++) {
 		cut_coeff_vals[i] = a_beta_r(i);
 		if (i == cut_var_index) {
 			cut_coeff_vals[i] -= (y_bar_i - floor(y_bar_i) - 1.0);
@@ -203,6 +228,26 @@ int Gomory::AddMixedCut(int cut_var_index) {
 
 	// Return the number of cuts generated.
 	return 1;
+}
+
+int Gomory::AddPureRounds(void) {
+	std::set<int>::iterator it;
+
+	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
+		AddPureCut(*it);
+	}
+
+	return frac_int_vars.size();
+}
+
+int Gomory::AddMixedRounds(void) {
+	std::set<int>::iterator it;
+
+	for (it = frac_int_vars.begin(); it != frac_int_vars.end(); ++it) {
+		AddMixedCut(*it);
+	}
+
+	return frac_int_vars.size();
 }
 
 int Gomory::GetRandomIndex(void) {
@@ -224,7 +269,7 @@ int Gomory::PurgeCuts(void) {
 		double constraint_slack;
 		grb_error = GRBgetdblattrelement(model, "Slack", i, &constraint_slack);
 
-		if (fabs(constraint_slack) > 1.0e-9) {
+		if (constraint_slack > purge_epsilon) {
 			purge_cut_ids.push_back(i);
 		}
 	}
@@ -232,85 +277,6 @@ int Gomory::PurgeCuts(void) {
 	grb_error = GRBdelconstrs(model, (int)purge_cut_ids.size(), purge_cut_ids.data());
 	grb_error = GRBoptimize(model);
 	return purge_cut_ids.size();
-}
-
-int Gomory::GetMostFractionalIndex(void) {
-	double max_diff = 0.0;
-	int best_index = *frac_int_vars.begin();
-
-	for (std::set<int>::const_iterator it = ++frac_int_vars.begin(); it != frac_int_vars.end(); it++) {
-		double val;
-		grb_error = GRBgetdblattrelement(model, "X", *it, &val);
-
-		double closest_int = round(val);
-		double diff = fabs(val - closest_int);
-		max_diff = diff > max_diff ? diff : max_diff;
-		best_index = diff > max_diff ? *it : best_index;
-	}
-
-	return best_index;
-}
-
-int Gomory::GetLeastFractionalIndex(void) {
-	double min_diff = std::numeric_limits<double>::max();
-	int best_index = *frac_int_vars.begin();
-
-	for (std::set<int>::const_iterator it = ++frac_int_vars.begin(); it != frac_int_vars.end(); it++) {
-		double val;
-		grb_error = GRBgetdblattrelement(model, "X", *it, &val);
-
-		double closest_int = round(val);
-		double diff = fabs(val - closest_int);
-
-		if (diff > AWAY && diff < min_diff) {
-			min_diff = diff;
-			best_index = *it;
-		}
-	}
-
-	return best_index;
-}
-
-void Gomory::LexSimplex(void) {
-	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
-
-	double sol_i;
-	grb_error = GRBgetdblattrelement(model, "X", 0, &sol_i);
-
-	int id[1] = {0};
-	double vid[1] = {1.0};
-	grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_i, NULL);
-	del_lex_constr_ids[0] = num_constrs;
-
-	for (unsigned int j = 1; j < num_vars; j++) {
-		for (unsigned int k = 0; k < num_vars; k++) {
-			if (k == j) {
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
-			} else {
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
-			}
-		}
-
-		grb_error = GRBoptimize(model);
-
-		int id[1] = {j};
-		double vid[1] = {1.0};
-
-		double sol_j;
-		grb_error = GRBgetdblattrelement(model, "X", j, &sol_j);
-		grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_j, NULL);
-		del_lex_constr_ids[j] = num_constrs + j;
-	}
-
-	grb_error = GRBoptimize(model);
-
-	// Restore the objective to that of the original problem.
-	for (unsigned int j = 0; j < num_vars; j++) {
-		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_obj_coeffs[j]);
-	}
-
-	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
-	grb_error = GRBoptimize(model);
 }
 
 void Gomory::PrintStep(void) {
@@ -321,28 +287,33 @@ void Gomory::PrintStep(void) {
 }
 
 int Gomory::Step(void) {
+	if (objective_value != old_objective_value && use_purge) {
+		PurgeCuts();
+		old_objective_value = objective_value;
+	}
+
 	UpdateBasisData();
 
 	if (num_vars == num_int_vars) {
-		// If all of the variables were integer, use the pure integer cut.
 		if (use_rounds) {
-			num_cuts += AddPureRounds();
-			//num_cuts += AddMixedRounds();
+			num_cuts += use_fgmi ? AddMixedRounds() : AddPureRounds();
 		} else {
-			num_cuts += AddPureCut(GetRandomIndex());
-			//num_cuts += AddMixedCut(GetRandomIndex());
+			int cut_var_id = GetRandomIndex();
+			num_cuts += use_fgmi ? AddMixedCut(cut_var_id) : AddPureCut(cut_var_id);
 		}
 	} else {
 		// Otherwise, use the mixed-integer cut.
 		if (use_rounds) {
 			num_cuts += AddMixedRounds();
 		} else {
-			num_cuts += AddMixedCut(GetRandomIndex());
+			int cut_var_id = GetRandomIndex();
+			num_cuts += AddMixedCut(cut_var_id);
 		}
 	}
 
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
+	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
 
 	return num_frac_vars;
 }
@@ -351,7 +322,7 @@ void Gomory::Run(void) {
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
 
-	while (num_frac_vars > 0 && num_cuts < MAX_CUTS) {
+	while (num_frac_vars > 0 && num_cuts < max_cuts) {
 		num_frac_vars = Step();
 		PrintStep();
 	}

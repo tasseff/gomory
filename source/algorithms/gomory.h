@@ -33,6 +33,15 @@ protected:
 	int GetMostFractionalIndex(void);
 	int GetLeastFractionalIndex(void);
 
+	// User-defined parameters.
+	double away_epsilon;
+	double purge_epsilon;
+	bool use_lex;
+	bool use_rounds;
+	bool use_fgmi;
+	bool use_purge;
+	int max_cuts;
+
 	// Declare other required variables.
 	int basis_size, num_cuts, original_num_constrs;
 
@@ -50,6 +59,7 @@ protected:
 	// Stuff used for the lexicographic method.
 	double* original_obj_coeffs; // Original objective coefficients.
 	int* del_lex_constr_ids; // Indices of constraints to delete after lex step.
+	double old_objective_value, objective_value;
 
 	// Declare required matrices and vectors.
 	Eigen::MatrixXd B;
@@ -58,7 +68,4 @@ protected:
 	Eigen::VectorXd c_beta;
 	Eigen::VectorXd a_beta_r;
 
-	// Define all the different epsilon types.
-	double away_epsilon;
-	bool use_rounds;
 };
