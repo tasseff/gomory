@@ -6,8 +6,8 @@
 
 # a comment is hash without a pbs after it
 
-#PBS -l walltime=72:00:00
-#PBS -l nodes=1,pmem=8gb
+#PBS -l walltime=24:00:00
+#PBS -l nodes=1,pmem=4gb
 
 #PBS -q	flux
 #PBS -A pvanhent_flux
@@ -34,4 +34,4 @@ module load gurobi
 cd /home/ctriley/gomory
 source venv/bin/activate
 cd scripts
-python solve_problem.py stat_files 6 -p -m
+python solve_problem.py stat_files 8
