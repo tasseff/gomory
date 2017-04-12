@@ -1,0 +1,37 @@
+#!/bin/bash
+#PBS -N mixed_gomory_3_stats
+#PBS -M ctriley@umich.edu
+#PBS -m bae
+#PBS -V
+
+# a comment is hash without a pbs after it
+
+#PBS -l walltime=24:00:00
+#PBS -l nodes=1,pmem=4gb
+
+#PBS -q	flux
+#PBS -A pvanhent_flux
+#PBS -l qos=flux
+#PBS -l gres=gurobi:1
+
+# line outputs the console log to a text file
+#PBS -o mixed_gomory_3_stats.txt
+
+# we can add commands down here
+
+if [ -s "$PBS_NODEFILE" ] ; then
+    echo "Running on"
+    cat $PBS_NODEFILE
+fi
+
+if [ -d "$PBS_O_WORKDIR" ] ; then
+    cd $PBS_O_WORKDIR
+    echo "Running from $PBS_O_WORKDIR"
+fi
+
+# normally you would add a large executable here
+module load gurobi
+cd /home/ctriley/gomoryMIXED
+source venv/bin/activate
+cd scripts
+python solve_problem.py -f stat_files -i 3
