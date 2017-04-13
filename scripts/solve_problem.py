@@ -3,12 +3,14 @@ import argparse
 import os
 import json
 import subprocess
+from collections import defaultdict
 sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7')
 sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/')
 sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/gurobipy')
-import gurobipy as grb
-import make_mip
 
+import gurobipy as grb
+
+import make_mip
 
 __author__ = "Byron Tasseff, Connor Riley"
 __credits__ = ["Byron Tasseff", "Connor Riley"]
@@ -26,7 +28,8 @@ def main(input_folder, output_folder, use_mixed_on_pure):
     (result_files, output_path) = initialize_results_files(input_folder, output_folder, use_mixed_on_pure)
     results_store = {}
     results_store["num_solved"] = {}
-    results_store["num_cuts"] = []
+    num_vars = 0
+    results_store["num_cuts"] = defaultdict(list)
     #subdirs = get_immediate_subdirectories(input_folder)
     #for subdir in subdirs:
     #    full_subdir = input_folder + "/" + subdir
@@ -45,11 +48,27 @@ def main(input_folder, output_folder, use_mixed_on_pure):
 
 # TODO: finish this -- this runs, need to get average cuts
 def write_results_store(results_store, folder, num_vars):
+    for method in results_store["num_cuts"]:
+        a = results_store["num_cuts"][method]
+        avg = sum(a) / float(len(a))
+        path = folder + "/" + "avg_cuts.csv"
+        write_average_cuts(avg, path, method)
     num_solved_store = results_store["num_solved"]
     for solve_type in num_solved_store:
         path = get_bar_graph_path(solve_type, folder)
         write_bar_graph_data(path, num_solved_store, solve_type, num_vars)
     return 0
+
+
+def write_average_cuts(avg, path, method):
+    data_to_write = method + "," + str(avg) + "\n"
+    if not os.path.exists(path):
+        f = open(path, 'w')
+        f.write('type,avg\n')
+        f.close()
+    f = open(path, "a")
+    f.write(data_to_write)
+    f.close()
 
 
 def process_results(output_path, result_files, actual_objective, results_store, 
@@ -63,11 +82,12 @@ def process_results(output_path, result_files, actual_objective, results_store,
             "lex_purging_mixed", "lex_rounds_purging_mixed"])
     for i, method in enumerate(methods):
         stats = get_stats(output_path + "/" + method + ".txt", actual_objective)
-        num_cuts = stats[0]
+        num_cuts = int(stats[0])
         if method not in results_store["num_solved"].keys():
             results_store["num_solved"][method] = 0
         if stats[-1] == True : results_store["num_solved"][method] += 1
-        results_store["num_cuts"].append(num_cuts)
+        if num_cuts < 10000:
+            results_store["num_cuts"][method].append(num_cuts)
         last_lines.append(stats)
     for i, path in enumerate(result_files):
         write_data_line(path, last_lines[i], j)
