@@ -14,7 +14,7 @@ import make_mip
 __author__ = "Byron Tasseff, Connor Riley"
 __credits__ = ["Byron Tasseff", "Connor Riley"]
 __license__ = "MIT"
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __maintainer__ = "Connor Riley"
 __email__ = ""
 __status__ = "Development"
@@ -30,7 +30,7 @@ def main(folder, num_vars, pure, use_mixed_on_pure):
         if not os.path.exists(new_folder_path):
             os.makedirs(new_folder_path)
         print("generating problem")            
-        obj = make_problem(num_vars,pure,new_folder_path)
+        obj = make_problem(num_vars,pure,new_folder_path, use_mixed_on_pure)
         j += 1
         print("running gomory cuts")
         run_gomory(new_folder_path, use_mixed_on_pure)
@@ -42,14 +42,14 @@ def main(folder, num_vars, pure, use_mixed_on_pure):
     return 0
 
 
-def make_problem(num_vars, pure, new_folder_path):
+def make_problem(num_vars, pure, new_folder_path, use_mixed_on_pure):
     feasible = False
     trivial = True
     while not feasible and trivial:
         (feasible, obj) = make_mip.make_mip(num_vars, num_vars, pure, 
             new_folder_path + "/generated_problem.lp")
         if feasible:
-            write_temp_input(new_folder_path)
+            write_inputs(new_folder_path, use_mixed_on_pure)
             trivial = is_trivial(new_folder_path, obj)
     return obj
 
@@ -64,18 +64,22 @@ def is_trivial(folder, actual_objective):
 
 def write_results_store(results_store, folder, num):
     for solve_type in results_store:
-        path = get_bar_graph_path(solve_type, folder, num)
-        write_bar_graph_data(path, results_store, solve_type)
+        if solve_type is not "num_starting_vars":
+            path = get_bar_graph_path(solve_type, folder, num)
+            write_bar_graph_data(path, results_store, solve_type)
     return 0
 
 
 def output_intermediate_results(new_folder_path, result_files, actual_objective, 
     j, results_store, use_mixed_on_pure):
-    methods = ["naive", "lex", "rounds", "rounds_lex"]
+    methods = ["naive", "lex", "rounds", "purging", "rounds_purging", 
+    "lex_rounds", "lex_purging", "lex_rounds_purging"]
     last_lines = []
     if use_mixed_on_pure:
-        methods.extend["naive_mixed", "lex_mixed", "rounds_mixed", "rounds_lex_mixed"]
-    for method in methods:
+        methods.extend(["naive_mixed", "lex_mixed", "rounds_mixed", 
+            "purging_mixed", "rounds_purging_mixed", "lex_rounds_mixed", 
+            "lex_purging_mixed", "lex_rounds_purging_mixed"])
+    for i, method in enumerate(methods):
         stats = get_stats(new_folder_path + "/" + method + ".txt", actual_objective)
         if method not in results_store.keys():
             results_store[method] = 0
@@ -149,42 +153,80 @@ def initialize_results_files(folder, num_vars, use_mixed_on_pure):
     results_file_path_naive = folder + "/results_naive_" + str(num_vars) + ".csv"
     results_file_path_lex = folder + "/results_lex_" + str(num_vars) + ".csv"
     results_file_path_rounds = folder + "/results_rounds_" + str(num_vars) + ".csv"
-    results_file_path_lex_rounds = folder + "/results_rounds_lex_" + str(num_vars) + ".csv"
-    filepaths = [results_file_path_naive, results_file_path_rounds, 
-        results_file_path_lex, results_file_path_lex_rounds]
+    results_file_path_purging = folder + "/results_purging_" + str(num_vars) + ".csv"
+    results_file_path_rounds_purging = folder + "/results_rounds_purging_" + str(num_vars) + ".csv"
+    results_file_path_lex_rounds = folder + "/results_lex_rounds_" + str(num_vars) + ".csv"
+    results_file_path_lex_purging = folder + "/results_lex_purging_" + str(num_vars) + ".csv"
+    results_file_path_lex_rounds_purging = folder + "/results_lex_rounds_purging_" + str(num_vars) + ".csv" 
+    filepaths = [results_file_path_naive, results_file_path_lex, 
+        results_file_path_rounds, results_file_path_purging, 
+        results_file_path_rounds_purging, results_file_path_lex_rounds,
+        results_file_path_lex_purging, results_file_path_lex_rounds_purging]
     if use_mixed_on_pure:
         path1 = folder + "/results_naive_mixed_" + str(num_vars) + ".csv"
         path2 = folder + "/results_lex_mixed_" + str(num_vars) + ".csv"
         path3 = folder + "/results_rounds_mixed_" + str(num_vars) + ".csv"
-        path4 = folder + "/results_rounds_lex_mixed_" + str(num_vars) + ".csv"
-        filepaths.extend([path1, path2, path3, path4])
+        path4 = folder + "/results_purging_mixed_" + str(num_vars) + ".csv"
+        path5 = folder + "/results_rounds_purging_mixed_" + str(num_vars) + ".csv"
+        path6 = folder + "/results_lex_rounds_" + str(num_vars) + ".csv"
+        path7 = folder + "/results_lex_purging_mixed_" + str(num_vars) + ".csv"
+        path8 = folder + "/results_lex_rounds_purging_mixed_" + str(num_vars) + ".csv" 
+        filepaths.extend([path1, path2, path3, path4, path5, path6, path7, path8])
     create_results_files(filepaths)
     return filepaths
+
 
 def create_results_files(file_array):
     for fn in file_array:
         f = open(fn, 'w')
-        f.write('problem_num, num_cuts,num_constr,det,obj\n')
+        f.write('problem_num, num_cuts,num_constr,det,obj,solved\n')
         f.close()
     return 0
 
 
 def write_data_line(filepath, line, j):
     line_to_write = str(str(j) + "," + line[0]) + ","  + str(line[1]) + "," + str(
-            line[2]) + "," + str(line[3])+ "\n"
+            line[2]) + "," + str(line[3] + "," + str(line[4]))+ "\n"
     f = open(filepath, 'a')
     f.write(line_to_write)
     f.close()
 
 
-def write_temp_input(folder):
+def write_inputs(folder, use_mixed_on_pure):
+    write_temp_input(folder, False, False, False, False, "naive")
+    write_temp_input(folder, True, False, False, False, "rounds")
+    write_temp_input(folder, False, True, False, False, "lex")
+    write_temp_input(folder, False, False, True, False, "purging")
+    write_temp_input(folder, True, True, False, False, "lex_rounds")
+    write_temp_input(folder, False, True, True, False, "lex_purging")
+    write_temp_input(folder, True, False, True, False, "rounds_purging")
+    write_temp_input(folder, True, True, True, False, "lex_rounds_purging")
+    if use_mixed_on_pure:
+        write_temp_input(folder, False, False, False, True, "naive_mixed")
+        write_temp_input(folder, True, False, False, True, "rounds_mixed")
+        write_temp_input(folder, False, True, False, True, "lex_mixed")
+        write_temp_input(folder, False, False, True, True, "purging_mixed")
+        write_temp_input(folder, True, True, False, True, "lex_rounds_mixed")
+        write_temp_input(folder, False, True, True, True, "lex_purging_mixed")
+        write_temp_input(folder, True, False, True, True, "rounds_purging_mixed")
+        write_temp_input(folder, True, True, True, True, "lex_rounds_purging_mixed")
+
+
+def write_temp_input(folder, rounds, lex, purging, mixed, name):
     d = {}
     d["parameters"] = {}
+    d["parameters"]["maxCuts"] = 2500
+    d["parameters"]["awayEpsilon"] = .01
+    d["parameters"]["purgeEpsilon"] = 1.0e-9
     d["parameters"]["model"] = folder + "/generated_problem.lp"
     d["parameters"]["solution"] = "solution.sol"
-    with open(folder + '/temp.json', 'w') as outfile:
+    d["parameters"]["useRounds"] = rounds
+    d["parameters"]["useLexicographic"] = lex
+    d["parameters"]["useMixedCut"] = mixed
+    d["parameters"]["usePurging"] = purging
+    with open(folder + '/' + name + '.json', 'w') as outfile:
         json.dump(d, outfile)
-    return 0
+    return name
 
 
 def read_last_line(filepath):
