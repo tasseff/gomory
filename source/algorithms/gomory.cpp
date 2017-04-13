@@ -185,11 +185,11 @@ int Gomory::AddPureCut(int cut_var_index) {
 	}
 	
 	// Compute constants for the cut.
-	double c_beta_r = c_beta.transpose() * r;
+	double c_beta_r = round(c_beta.transpose() * r);
 	a_beta_r = B * r;
 
 	for (int i = 0; i < num_vars; i++) {
-		cut_coeff_vals[i] = a_beta_r(i);
+		cut_coeff_vals[i] = round(a_beta_r(i));
 	}
 
 	cut_coeff_vals[cut_var_index] += 1.0;
@@ -198,7 +198,7 @@ int Gomory::AddPureCut(int cut_var_index) {
 	grb_error = GRBgetdblattrelement(model, "X", cut_var_index, &y_bar_i);
 	double rhs = c_beta_r + floor(y_bar_i);
 	grb_error = GRBaddconstr(model, num_vars, cut_coeff_ids, cut_coeff_vals,
-	                         GRB_LESS_EQUAL, rhs, NULL);
+	                         GRB_LESS_EQUAL, round(rhs), NULL);
 
 	if (use_lex) {
 		grb_error = GRBoptimize(model);
