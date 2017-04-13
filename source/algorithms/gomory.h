@@ -30,8 +30,7 @@ protected:
 
 	// Methods to obtain fractional variable indices.
 	int GetRandomIndex(void);
-	int GetMostFractionalIndex(void);
-	int GetLeastFractionalIndex(void);
+	int GetLexIndex(void);
 
 	// User-defined parameters.
 	double away_epsilon;

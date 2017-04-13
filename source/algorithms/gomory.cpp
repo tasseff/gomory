@@ -14,6 +14,7 @@ Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
 	use_fgmi = root["useMixedCut"].GetBool();
 	use_purge = root["usePurging"].GetBool();
 
+	// Set up the Gurobi environment variable.
 	grb_error = GRBloadenv(&env, "gurobi.log");
 
 	// Ensure Gurobi behaves only as a very accurate linear programming solver.
@@ -24,9 +25,11 @@ Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
 	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_NODELIMIT, 0.0);
 	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_OPTIMALITYTOL, 1.0e-9);
 	grb_error = GRBsetintparam(env, GRB_INT_PAR_CUTS, 0);
-	grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
 	grb_error = GRBsetintparam(env, GRB_INT_PAR_PRESOLVE, 0);
 	grb_error = GRBsetintparam(env, GRB_INT_PAR_QUAD, 1);
+
+	// Turn off Gurobi shell output.
+	grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
 
 	// Read in the mixed-integer model.
 	std::string model_path = root["model"].GetString();
@@ -250,6 +253,10 @@ int Gomory::AddMixedRounds(void) {
 	return frac_int_vars.size();
 }
 
+int Gomory::GetLexIndex(void) {
+	return *frac_int_vars.begin();
+}
+
 int Gomory::GetRandomIndex(void) {
 	int set_index = rand() % frac_int_vars.size();
 
@@ -280,10 +287,16 @@ int Gomory::PurgeCuts(void) {
 }
 
 void Gomory::PrintStep(void) {
+	static bool started_print = false;
+	if (started_print == false) {
+		started_print = true;
+		std::cout << "ncuts,nconstrs,det,obj" << std::endl;
+	}
+
 	double current_obj;
 	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &current_obj);
-	std::cout << num_cuts << "\t" << B.determinant() << "\t" << current_obj
-	          << "\t" << num_constrs << std::endl;
+	std::cout << num_cuts << "," << num_constrs << "," << B.determinant()
+	          << "," << current_obj << std::endl;
 }
 
 int Gomory::Step(void) {
@@ -298,7 +311,7 @@ int Gomory::Step(void) {
 		if (use_rounds) {
 			num_cuts += use_fgmi ? AddMixedRounds() : AddPureRounds();
 		} else {
-			int cut_var_id = GetRandomIndex();
+			int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
 			num_cuts += use_fgmi ? AddMixedCut(cut_var_id) : AddPureCut(cut_var_id);
 		}
 	} else {
@@ -306,7 +319,7 @@ int Gomory::Step(void) {
 		if (use_rounds) {
 			num_cuts += AddMixedRounds();
 		} else {
-			int cut_var_id = GetRandomIndex();
+			int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
 			num_cuts += AddMixedCut(cut_var_id);
 		}
 	}
@@ -321,6 +334,8 @@ int Gomory::Step(void) {
 void Gomory::Run(void) {
 	grb_error = GRBoptimize(model);
 	int num_frac_vars = UpdateVariableData();
+	UpdateBasisData();
+	PrintStep();
 
 	while (num_frac_vars > 0 && num_cuts < max_cuts) {
 		num_frac_vars = Step();
