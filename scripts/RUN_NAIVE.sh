@@ -3,5 +3,5 @@
 CURRENT_DIR="$(pwd)"
 CURRENT_TIME=$(date +%s)
 FILE1=$1
-
-./../cmake-build-debug/output/gmi ${1}/naive.json > $1/naive.txt
+FILE2=$2
+./../cmake-build-debug/output/gmi naive.json $2 solution.sol > $1/naive.txt

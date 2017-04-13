@@ -7,71 +7,53 @@ sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7')
 sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/')
 sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/gurobipy')
 import gurobipy as grb
-
 import make_mip
 
 
 __author__ = "Byron Tasseff, Connor Riley"
 __credits__ = ["Byron Tasseff", "Connor Riley"]
 __license__ = "MIT"
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 __maintainer__ = "Connor Riley"
 __email__ = ""
 __status__ = "Development"
 
 
-def main(folder, num_vars, pure, use_mixed_on_pure):
-    result_files = initialize_results_files(folder, num_vars, use_mixed_on_pure)
+def main(input_folder, output_folder, use_mixed_on_pure):
+    # make sure the json files needed for input exist, if not write them
+    write_inputs(use_mixed_on_pure)
+    # initalize the files to store the results
+    (result_files, output_path) = initialize_results_files(input_folder, output_folder, use_mixed_on_pure)
     results_store = {}
-    results_store["num_starting_vars"] = num_vars
-    j = 0
-    while(j < 50):
-    	new_folder_path = folder + "/ex_" + str(num_vars) + "_" + str(j)
-        if not os.path.exists(new_folder_path):
-            os.makedirs(new_folder_path)
-        print("generating problem")            
-        obj = make_problem(num_vars,pure,new_folder_path, use_mixed_on_pure)
-        j += 1
-        print("running gomory cuts")
-        run_gomory(new_folder_path, use_mixed_on_pure)
-        print("outputing results")
-        output_intermediate_results(new_folder_path, result_files, obj, j, 
-            results_store, use_mixed_on_pure)
-    print("writing results")
-    write_results_store(results_store, folder, num)
+    results_store["num_solved"] = {}
+    results_store["num_cuts"] = []
+    #subdirs = get_immediate_subdirectories(input_folder)
+    #for subdir in subdirs:
+    #    full_subdir = input_folder + "/" + subdir
+    onlyfiles = [f for f in os.listdir(input_folder) if os.path.isfile(os.path.join(input_folder, f))]
+    for j, f in enumerate(onlyfiles):
+        full_path = input_folder + "/" + f
+        (objective, num_vars) = run_gurobi(full_path)
+        instance_output_path = make_output_path(output_path, f)
+        if not os.path.exists(instance_output_path):
+            os.makedirs(instance_output_path)
+        run_gomory(full_path, instance_output_path, use_mixed_on_pure)
+        process_results(instance_output_path, result_files, objective,
+            results_store, use_mixed_on_pure, j)
+    write_results_store(results_store, output_path, num_vars)
+    return 0
+
+# TODO: finish this -- this runs, need to get average cuts
+def write_results_store(results_store, folder, num_vars):
+    num_solved_store = results_store["num_solved"]
+    for solve_type in num_solved_store:
+        path = get_bar_graph_path(solve_type, folder)
+        write_bar_graph_data(path, num_solved_store, solve_type, num_vars)
     return 0
 
 
-def make_problem(num_vars, pure, new_folder_path, use_mixed_on_pure):
-    feasible = False
-    trivial = True
-    while not feasible and trivial:
-        (feasible, obj) = make_mip.make_mip(num_vars, num_vars, pure, 
-            new_folder_path + "/generated_problem.lp")
-        if feasible:
-            write_inputs(new_folder_path, use_mixed_on_pure)
-            trivial = is_trivial(new_folder_path, obj)
-    return obj
-
-
-def is_trivial(folder, actual_objective):
-    rc = subprocess.check_call(["./RUN_NAIVE.sh", folder])
-    (num_cuts, _,_,_,_) = get_stats(folder + "/naive.txt", actual_objective)
-    if num_cuts == 0:
-        return True
-    return False
-
-
-def write_results_store(results_store, folder, num):
-    for solve_type in results_store:
-        if solve_type is not "num_starting_vars":
-            path = get_bar_graph_path(solve_type, folder, num)
-            write_bar_graph_data(path, results_store, solve_type)
-    return 0
-
-
-def output_intermediate_results(new_folder_path, result_files, actual_objective, 
-    j, results_store, use_mixed_on_pure):
+def process_results(output_path, result_files, actual_objective, results_store, 
+    use_mixed_on_pure, j):
     methods = ["naive", "lex", "rounds", "purging", "rounds_purging", 
     "lex_rounds", "lex_purging", "lex_rounds_purging"]
     last_lines = []
@@ -80,13 +62,36 @@ def output_intermediate_results(new_folder_path, result_files, actual_objective,
             "purging_mixed", "rounds_purging_mixed", "lex_rounds_mixed", 
             "lex_purging_mixed", "lex_rounds_purging_mixed"])
     for i, method in enumerate(methods):
-        stats = get_stats(new_folder_path + "/" + method + ".txt", actual_objective)
-        if method not in results_store.keys():
-            results_store[method] = 0
-        if stats[-1] == True : results_store[method] += 1
+        stats = get_stats(output_path + "/" + method + ".txt", actual_objective)
+        num_cuts = stats[0]
+        if method not in results_store["num_solved"].keys():
+            results_store["num_solved"][method] = 0
+        if stats[-1] == True : results_store["num_solved"][method] += 1
+        results_store["num_cuts"].append(num_cuts)
         last_lines.append(stats)
     for i, path in enumerate(result_files):
-        write_data_line(path, last_lines[i],  j)
+        write_data_line(path, last_lines[i], j)
+    return 0
+
+
+def make_output_path(output_path, file_name):
+    split = file_name.split(".")
+    return output_path + "/" + split[0]
+
+
+def run_gurobi(file_path):
+    rc = subprocess.check_call(["gurobi_cl", "ResultFile=" + "gurobi_solution.sol", file_path])
+    with open("gurobi_solution.sol") as f:
+        content = f.readlines()
+    obj = content[0].split("=")[1]
+    num_vars = len(content) - 1
+    return (float(obj), num_vars)
+
+
+def run_gomory(input_path, output_path, use_mixed_on_pure):
+    rc = subprocess.check_call(["./RUN.sh", input_path, output_path])
+    if use_mixed_on_pure:
+        rc = subprocess.check_call(["./RUN_MIXED.sh", input_path, output_path])
     return 0
 
 
@@ -116,24 +121,8 @@ def test_for_solution(num_cuts, obj, actual_objective):
     return False
 
 
-def run_gomory(folder, use_mixed_on_pure):
-    rc = subprocess.check_call(["./RUN.sh", folder])
-    if use_mixed_on_pure:
-        rc = subprocess.check_call(["./RUN_MIXED.sh", folder])
-    return 0
-
-
-def run_gurobi(folder):
-    rc = subprocess.check_call(["gurobi_cl", "ResultFile=" + folder + "/gurobi_solution.sol", folder+"/generated_problem.lp"])
-    with open(folder + "/gurobi_solution.sol") as f:
-        content = f.readlines()
-    obj = content[0].split("=")[1]
-    return float(obj)
-
-
-def write_bar_graph_data(bar_path, results_store, solve_method):
-    num_starting_vars = results_store["num_starting_vars"]
-    data_to_write = str(num_starting_vars) + "," + str(results_store[solve_method]) + "\n"
+def write_bar_graph_data(bar_path, results_store, solve_method, num_vars):
+    data_to_write = str(num_vars) + "," + str(results_store[solve_method]) + "\n"
     if not os.path.exists(bar_path):
         f = open(bar_path, 'w')
         f.write('num_starting_vars,num_finished\n')
@@ -143,37 +132,38 @@ def write_bar_graph_data(bar_path, results_store, solve_method):
     f.close()
 
 
-def get_bar_graph_path(solve_method, folder, i):
-    return folder + "/" + "bar_graph_" + solve_method + "_" + str(i) + ".csv"
+def get_bar_graph_path(solve_method, folder):
+    return folder + "/" + "bar_graph_" + solve_method + ".csv"
 
 
-def initialize_results_files(folder, num_vars, use_mixed_on_pure):
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    results_file_path_naive = folder + "/results_naive_" + str(num_vars) + ".csv"
-    results_file_path_lex = folder + "/results_lex_" + str(num_vars) + ".csv"
-    results_file_path_rounds = folder + "/results_rounds_" + str(num_vars) + ".csv"
-    results_file_path_purging = folder + "/results_purging_" + str(num_vars) + ".csv"
-    results_file_path_rounds_purging = folder + "/results_rounds_purging_" + str(num_vars) + ".csv"
-    results_file_path_lex_rounds = folder + "/results_lex_rounds_" + str(num_vars) + ".csv"
-    results_file_path_lex_purging = folder + "/results_lex_purging_" + str(num_vars) + ".csv"
-    results_file_path_lex_rounds_purging = folder + "/results_lex_rounds_purging_" + str(num_vars) + ".csv" 
+def initialize_results_files(input_folder, output_folder, use_mixed_on_pure):
+    output_path = output_folder + "/" + input_folder.split("/")[-1]
+    if not os.path.exists(output_path):
+            os.makedirs(output_path)
+    results_file_path_naive = output_path + "/results_naive.csv"
+    results_file_path_lex = output_path + "/results_lex.csv"
+    results_file_path_rounds = output_path + "/results_rounds.csv"
+    results_file_path_purging = output_path + "/results_purging.csv"
+    results_file_path_rounds_purging = output_path + "/results_rounds_purging.csv"
+    results_file_path_lex_rounds = output_path + "/results_lex_rounds.csv"
+    results_file_path_lex_purging = output_path + "/results_lex_purging.csv"
+    results_file_path_lex_rounds_purging = output_path + "/results_lex_rounds_purging.csv" 
     filepaths = [results_file_path_naive, results_file_path_lex, 
         results_file_path_rounds, results_file_path_purging, 
         results_file_path_rounds_purging, results_file_path_lex_rounds,
         results_file_path_lex_purging, results_file_path_lex_rounds_purging]
     if use_mixed_on_pure:
-        path1 = folder + "/results_naive_mixed_" + str(num_vars) + ".csv"
-        path2 = folder + "/results_lex_mixed_" + str(num_vars) + ".csv"
-        path3 = folder + "/results_rounds_mixed_" + str(num_vars) + ".csv"
-        path4 = folder + "/results_purging_mixed_" + str(num_vars) + ".csv"
-        path5 = folder + "/results_rounds_purging_mixed_" + str(num_vars) + ".csv"
-        path6 = folder + "/results_lex_rounds_" + str(num_vars) + ".csv"
-        path7 = folder + "/results_lex_purging_mixed_" + str(num_vars) + ".csv"
-        path8 = folder + "/results_lex_rounds_purging_mixed_" + str(num_vars) + ".csv" 
+        path1 = output_path + "/results_naive_mixed.csv"
+        path2 = output_path + "/results_lex_mixed.csv"
+        path3 = output_path + "/results_rounds_mixed.csv"
+        path4 = output_path + "/results_purging_mixed.csv"
+        path5 = output_path + "/results_rounds_purging_mixed.csv"
+        path6 = output_path + "/results_lex_rounds.csv"
+        path7 = output_path + "/results_lex_purging_mixed.csv"
+        path8 = output_path + "/results_lex_rounds_purging_mixed.csv" 
         filepaths.extend([path1, path2, path3, path4, path5, path6, path7, path8])
     create_results_files(filepaths)
-    return filepaths
+    return (filepaths, output_path)
 
 
 def create_results_files(file_array):
@@ -192,39 +182,37 @@ def write_data_line(filepath, line, j):
     f.close()
 
 
-def write_inputs(folder, use_mixed_on_pure):
-    write_temp_input(folder, False, False, False, False, "naive")
-    write_temp_input(folder, True, False, False, False, "rounds")
-    write_temp_input(folder, False, True, False, False, "lex")
-    write_temp_input(folder, False, False, True, False, "purging")
-    write_temp_input(folder, True, True, False, False, "lex_rounds")
-    write_temp_input(folder, False, True, True, False, "lex_purging")
-    write_temp_input(folder, True, False, True, False, "rounds_purging")
-    write_temp_input(folder, True, True, True, False, "lex_rounds_purging")
+def write_inputs(use_mixed_on_pure):
+    write_input(folder, False, False, False, False, "naive")
+    write_input(folder, True, False, False, False, "rounds")
+    write_input(folder, False, True, False, False, "lex")
+    write_input(folder, False, False, True, False, "purging")
+    write_input(folder, True, True, False, False, "lex_rounds")
+    write_input(folder, False, True, True, False, "lex_purging")
+    write_input(folder, True, False, True, False, "rounds_purging")
+    write_input(folder, True, True, True, False, "lex_rounds_purging")
     if use_mixed_on_pure:
-        write_temp_input(folder, False, False, False, True, "naive_mixed")
-        write_temp_input(folder, True, False, False, True, "rounds_mixed")
-        write_temp_input(folder, False, True, False, True, "lex_mixed")
-        write_temp_input(folder, False, False, True, True, "purging_mixed")
-        write_temp_input(folder, True, True, False, True, "lex_rounds_mixed")
-        write_temp_input(folder, False, True, True, True, "lex_purging_mixed")
-        write_temp_input(folder, True, False, True, True, "rounds_purging_mixed")
-        write_temp_input(folder, True, True, True, True, "lex_rounds_purging_mixed")
+        write_input(folder, False, False, False, True, "naive_mixed")
+        write_input(folder, True, False, False, True, "rounds_mixed")
+        write_input(folder, False, True, False, True, "lex_mixed")
+        write_input(folder, False, False, True, True, "purging_mixed")
+        write_input(folder, True, True, False, True, "lex_rounds_mixed")
+        write_input(folder, False, True, True, True, "lex_purging_mixed")
+        write_input(folder, True, False, True, True, "rounds_purging_mixed")
+        write_input(folder, True, True, True, True, "lex_rounds_purging_mixed")
 
 
-def write_temp_input(folder, rounds, lex, purging, mixed, name):
+def write_input(folder, rounds, lex, purging, mixed, name):
     d = {}
     d["parameters"] = {}
     d["parameters"]["maxCuts"] = 2500
     d["parameters"]["awayEpsilon"] = .01
     d["parameters"]["purgeEpsilon"] = 1.0e-9
-    d["parameters"]["model"] = folder + "/generated_problem.lp"
-    d["parameters"]["solution"] = "solution.sol"
     d["parameters"]["useRounds"] = rounds
     d["parameters"]["useLexicographic"] = lex
     d["parameters"]["useMixedCut"] = mixed
     d["parameters"]["usePurging"] = purging
-    with open(folder + '/' + name + '.json', 'w') as outfile:
+    with open(name + '.json', 'w') as outfile:
         json.dump(d, outfile)
     return name
 
@@ -236,25 +224,25 @@ def read_last_line(filepath):
     return last_line
 
 
+def get_immediate_subdirectories(a_dir):
+    return [name for name in os.listdir(a_dir)
+            if os.path.isdir(os.path.join(a_dir, name))]
+
+
 if __name__ == "__main__":
     description = 'Generate random feasible problems, solve them and output results.'
     parser = argparse.ArgumentParser(description = description)
+    parser.add_argument('input', type=str, nargs=1,
+                        metavar = 'input',
+                        help = 'input folder')
     parser.add_argument('folder', type=str, nargs=1,
                         metavar = 'folder',
                         help = 'folder to put statistics in')
-    parser.add_argument('num', type=int, nargs=1,
-                        metavar = 'num',
-                        help = 'number of variables/constraints')
-    parser.add_argument('-p', '--p', action="store_true", default=False,
-            help = 'use this option to make pure problems')
     parser.add_argument('-m', '--m', action="store_true", default=False,
 			help = 'use this option to use mixed cuts on pure problems')
 
     args = parser.parse_args()
-    num = args.num[0]
+    input_folder = args.input[0]
     folder = args.folder[0]
-    pure = args.p
     use_mixed_on_pure = args.m
-    if use_mixed_on_pure and not pure:
-        print("You are generating mixed problems, and do not need the flag to do mixed cuts")
-    main(folder, num, pure, use_mixed_on_pure)
+    main(input_folder, folder, use_mixed_on_pure)
