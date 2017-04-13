@@ -33,14 +33,14 @@ Gomory::Gomory(const rapidjson::Value& root, std::string model_path_,
 	// Turn off Gurobi shell output.
 	grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
 
+	// Set the timeout option.
+	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_TIMELIMIT, 60.0);
+
 	// Read in the mixed-integer model.
 	grb_error = GRBreadmodel(env, model_path.c_str(), &model);
 
 	// Convert the read-in model to a linear program.
 	SetupModel();
-
-	// Set the timeout option.
-	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_TIMELIMIT, 60.0);
 }
 
 void Gomory::Optimize(void) {
