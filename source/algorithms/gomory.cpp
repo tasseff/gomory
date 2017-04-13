@@ -321,8 +321,7 @@ int Gomory::Step(void) {
 		if (use_rounds) {
 			num_cuts += use_fgmi ? AddMixedRounds() : AddPureRounds();
 		} else {
-			//int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
-			int cut_var_id = GetRandomIndex();
+			int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
 			num_cuts += use_fgmi ? AddMixedCut(cut_var_id) : AddPureCut(cut_var_id);
 		}
 	} else {
@@ -330,8 +329,7 @@ int Gomory::Step(void) {
 		if (use_rounds) {
 			num_cuts += AddMixedRounds();
 		} else {
-			//int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
-			int cut_var_id = GetRandomIndex();
+			int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
 			num_cuts += AddMixedCut(cut_var_id);
 		}
 	}
