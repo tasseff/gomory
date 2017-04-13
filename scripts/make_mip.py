@@ -55,9 +55,13 @@ def make_mip(num_constraints, num_variables, pure, output_path):
     model.optimize()
 
     # If the problem is trivial, stop.
+    one_fractional = False
     for j, var in enumerate(var_list):
-        if (var.X).is_integer():
-            return False
+        if not (var.X).is_integer():
+            one_fractional = True
+
+    if one_fractional == False:
+       return False
 
     # Set the possible variable types.
     var_types = [grb.GRB.INTEGER]
