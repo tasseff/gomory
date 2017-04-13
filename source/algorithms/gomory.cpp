@@ -167,7 +167,7 @@ void Gomory::UpdateBasisData(void) {
 	for (int i = 0, basis_count = 0; i < num_constrs; i++) {
 		if (basis_count < basis_size) {
 			int cbasis;
-			grb_error = GRBgetintattrelement(model, "CBasis", i, &cbasis);
+			grb_error = GRBgetintattrelement(model, GRB_INT_ATTR_CBASIS, i, &cbasis);
 
 			if (cbasis == -1) {
 				for (int j = 0; j < basis_size; j++) {
@@ -177,7 +177,7 @@ void Gomory::UpdateBasisData(void) {
 				}
 
 				double tmp_c_val;
-				grb_error = GRBgetdblattrelement(model, "RHS", i, &tmp_c_val);
+				grb_error = GRBgetdblattrelement(model, GRB_DBL_ATTR_RHS, i, &tmp_c_val);
 				c_beta(basis_count) = tmp_c_val;
 				basis_count++;
 			}
