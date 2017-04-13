@@ -51,7 +51,6 @@ def make_mip(num_constraints, num_variables, pure, output_path):
         model.addConstr(lhs, grb.GRB.LESS_EQUAL, c[i])
 
     # Solve the continuous relaxation.
-    model.setParam("TimeLimit", 5)
     model.optimize()
 
     # If the problem is trivial, stop.
@@ -72,6 +71,7 @@ def make_mip(num_constraints, num_variables, pure, output_path):
         var_type = random.choice(var_types)
         var.vtype = var_type
 
+    model.setParam("TimeLimit", 5)
     model.update()
     model.optimize()
 
