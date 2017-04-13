@@ -6,7 +6,8 @@
 
 class Gomory : public BaseModel {
 public:
-	Gomory(const rapidjson::Value& root);
+	Gomory(const rapidjson::Value& root, std::string model_path_,
+	       std::string solution_path_);
 	~Gomory(void);
 	void Run(void);
 

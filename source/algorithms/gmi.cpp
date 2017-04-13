@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
 	Document json(model_file);
 
 	// Set up the model.
-	Gomory model(json.root["parameters"]);
+	Gomory model(json.root["parameters"], argv[2], argv[3]);
 
 	// Run the model.
 	model.Run();

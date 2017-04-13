@@ -1,5 +1,3 @@
-\ LP format example
-
 Maximize
 	y
 Subject To

@@ -1,6 +1,4 @@
 { "parameters": {
-		"model": "worst_case_pure.lp",
-		"solution": "worst_case_pure_solution.sol",
 		"maxCuts": 10000,
 		"awayEpsilon": 0.01,
 		"purgeEpsilon": 1.0e-9,

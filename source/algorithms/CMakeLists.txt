@@ -1,6 +1,4 @@
 INCLUDE_DIRECTORIES("${CMAKE_CURRENT_SOURCE_DIR}")
-ADD_EXECUTABLE("gurobi" "gurobi.cpp")
-TARGET_LINK_LIBRARIES("gurobi" Common ${GUROBI_LIBRARIES})
 ADD_EXECUTABLE("gmi" "gmi.cpp" "gomory.cpp")
 TARGET_LINK_LIBRARIES("gmi" Common ${GUROBI_LIBRARIES})
 #ADD_EXECUTABLE("gmi_naive" "gmi_naive.cpp" "gomory_naive.cpp")

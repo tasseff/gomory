@@ -4,7 +4,9 @@
 #include <vector>
 #include "gomory.h"
 
-Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
+Gomory::Gomory(const rapidjson::Value& root, std::string model_path_,
+               std::string solution_path_) : BaseModel(root, model_path_,
+                                                       solution_path_) {
 	// Load required user-defined parameters.
 	max_cuts = root["maxCuts"].GetInt();
 	away_epsilon = root["awayEpsilon"].GetDouble();
@@ -32,7 +34,6 @@ Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
 	grb_error = GRBsetintparam(env, GRB_INT_PAR_OUTPUTFLAG, 0);
 
 	// Read in the mixed-integer model.
-	std::string model_path = root["model"].GetString();
 	grb_error = GRBreadmodel(env, model_path.c_str(), &model);
 
 	// Convert the read-in model to a linear program.
