@@ -19,6 +19,7 @@ protected:
 	void PrintStep(void);
 	int UpdateVariableData(void);
 	void LexSimplex(void);
+	void Optimize(void);
 
 	// Define the different ways to add cuts.
 	int AddPureCut(int cut_var_index);
