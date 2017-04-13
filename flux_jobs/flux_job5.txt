@@ -34,4 +34,4 @@ module load gurobi
 cd /home/ctriley/gomory
 source venv/bin/activate
 cd scripts
-python solve_problem.py stat_files 5 -p -m
+python solve_problem.py ../pure/n_5 stats -m
