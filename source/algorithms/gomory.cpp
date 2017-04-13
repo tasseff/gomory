@@ -38,6 +38,21 @@ Gomory::Gomory(const rapidjson::Value& root, std::string model_path_,
 
 	// Convert the read-in model to a linear program.
 	SetupModel();
+
+	// Set the timeout option.
+	grb_error = GRBsetdblparam(env, GRB_DBL_PAR_TIMELIMIT, 60.0);
+}
+
+void Gomory::Optimize(void) {
+	grb_error = GRBoptimize(model);
+
+	int model_status;
+	grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &model_status);
+
+	if (model_status != 2) {
+		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
+		std::exit(model_status);
+	}
 }
 
 void Gomory::LexSimplex(void) {
@@ -60,7 +75,7 @@ void Gomory::LexSimplex(void) {
 			}
 		}
 
-		grb_error = GRBoptimize(model);
+		Optimize();
 
 		int id[1] = {j};
 		double vid[1] = {1.0};
@@ -71,7 +86,7 @@ void Gomory::LexSimplex(void) {
 		del_lex_constr_ids[j] = num_constrs + j;
 	}
 
-	grb_error = GRBoptimize(model);
+	Optimize();
 
 	// Restore the objective to that of the original problem.
 	for (int j = 0; j < num_vars; j++) {
@@ -79,7 +94,7 @@ void Gomory::LexSimplex(void) {
 	}
 
 	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
-	grb_error = GRBoptimize(model);
+	Optimize();
 }
 
 void Gomory::SetupModel(void) {
@@ -202,7 +217,7 @@ int Gomory::AddPureCut(int cut_var_index) {
 	                         GRB_LESS_EQUAL, round(rhs), NULL);
 
 	if (use_lex) {
-		grb_error = GRBoptimize(model);
+		Optimize();
 	}
 
 	// Return number of generated cuts.
@@ -237,7 +252,7 @@ int Gomory::AddMixedCut(int cut_var_index) {
 	                         GRB_LESS_EQUAL, rhs, NULL);
 
 	if (use_lex) {
-		grb_error = GRBoptimize(model);
+		Optimize();
 	}
 
 	// Return the number of cuts generated.
@@ -293,7 +308,8 @@ int Gomory::PurgeCuts(void) {
 	}
 
 	grb_error = GRBdelconstrs(model, (int)purge_cut_ids.size(), purge_cut_ids.data());
-	grb_error = GRBoptimize(model);
+	Optimize();
+
 	return purge_cut_ids.size();
 }
 
@@ -334,14 +350,14 @@ int Gomory::Step(void) {
 		}
 	}
 
-	grb_error = GRBoptimize(model);
+	Optimize();
 	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
 
 	return UpdateVariableData();
 }
 
 void Gomory::Run(void) {
-	grb_error = GRBoptimize(model);
+	Optimize();
 	int num_frac_vars = UpdateVariableData();
 	UpdateBasisData();
 	PrintStep();
