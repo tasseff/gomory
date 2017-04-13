@@ -97,8 +97,8 @@ void Gomory::SetupModel(void) {
 	cut_coeff_vals = (double*)malloc(num_vars*sizeof(double));
 
 	// Allocate arrays to be used with the lexicographic method.
-	original_obj_coeffs = (double*)malloc(num_vars*sizeof(double));
 	del_lex_constr_ids = (int*)malloc(num_vars*sizeof(int));
+	original_obj_coeffs = (double*)malloc(num_vars*sizeof(double));
 
 	// If a variable is not continuous, make it continuous.
 	for (int j = 0, k = 0; j < num_vars; j++) {
@@ -185,7 +185,7 @@ int Gomory::AddPureCut(int cut_var_index) {
 	}
 	
 	// Compute constants for the cut.
-	double c_beta_r = round(c_beta.transpose() * r);
+	double c_beta_r = c_beta.transpose() * r;
 	a_beta_r = B * r;
 
 	for (int i = 0; i < num_vars; i++) {
@@ -325,7 +325,6 @@ int Gomory::Step(void) {
 			num_cuts += use_fgmi ? AddMixedCut(cut_var_id) : AddPureCut(cut_var_id);
 		}
 	} else {
-		// Otherwise, use the mixed-integer cut.
 		if (use_rounds) {
 			num_cuts += AddMixedRounds();
 		} else {
@@ -335,10 +334,9 @@ int Gomory::Step(void) {
 	}
 
 	grb_error = GRBoptimize(model);
-	int num_frac_vars = UpdateVariableData();
 	grb_error = GRBgetdblattr(model, GRB_DBL_ATTR_OBJVAL, &objective_value);
 
-	return num_frac_vars;
+	return UpdateVariableData();
 }
 
 void Gomory::Run(void) {

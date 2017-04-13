@@ -3,9 +3,6 @@
 """make_mip.py: Generate random feasible mixed-integer programs."""
 import sys
 import argparse
-sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7')
-sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/')
-sys.path.append('/sw/arc/centos7/gurobi/gurobi652/linux64/lib/python2.7/gurobipy')
 import gurobipy as grb
 import numpy as np
 import os
@@ -16,7 +13,7 @@ import scipy.sparse
 __author__ = "Byron Tasseff"
 __credits__ = ["Byron Tasseff"]
 __license__ = "MIT"
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __maintainer__ = "Byron Tasseff"
 __email__ = "byron@tasseff.com"
 __status__ = "Development"
@@ -24,6 +21,11 @@ __status__ = "Development"
 def make_mip(num_constraints, num_variables, pure, output_path):
     # Create a feasible maximization problem with constraints A' y <= c.
     A = np.random.randint(-5, 5, size = (num_variables, num_constraints))
+
+    # If the matrix is singular, problem generation has failed.
+    if np.linalg.det(A) == 0:
+        return False
+
     x = np.random.randint(0, 10, size = (num_constraints, 1))
     b = np.matmul(A, x)
     c = np.random.randint(0, num_variables, size = (num_constraints, 1))
@@ -40,8 +42,7 @@ def make_mip(num_constraints, num_variables, pure, output_path):
     var_list = []
     obj = grb.LinExpr()
     for j in range(0, num_variables):
-        var_type = random.choice(var_types)
-        var = model.addVar(vtype = var_type, lb = -grb.GRB.INFINITY, ub = grb.GRB.INFINITY)
+        var = model.addVar(vtype = grb.GRB.CONTINUOUS, lb = -grb.GRB.INFINITY, ub = grb.GRB.INFINITY)
         var_list.append(var)
         obj += var * b[j]
 
@@ -54,27 +55,43 @@ def make_mip(num_constraints, num_variables, pure, output_path):
             lhs += A_T[i, j] * var
         model.addConstr(lhs, grb.GRB.LESS_EQUAL, c[i])
 
-    model.update()
-    model.setParam("TimeLimit", 60)
+    # Solve the continuous relaxation.
+    model.setParam("TimeLimit", 1)
     model.optimize()
-    status = model.Status
-    obj = model.ObjVal
-    if status != grb.GRB.OPTIMAL or (obj >= 0 - .0000000001 and obj <= 0 + .0000000001):
-        return (False, -1)
-    model.write(output_path)
-    return (True, obj)
 
+    # If the problem is trivial, stop.
+    for j, var in enumerate(var_list):
+        if (var.X).is_integer():
+            return False
+
+    for var in var_list:
+        var_type = random.choice(var_types)
+        var.vtype = var_type
+
+    model.update()
+    model.optimize()
+
+    # Ensure the problem was optimized and produced an optimal objective value.
+    if model.status != grb.GRB.OPTIMAL or abs(model.objVal) <= 1e-7:
+        return False # Problem generation failed.
+    else:
+        model.write(output_path)
+        print(output_path)
+        return True # Problem generation succeeded.
 
 def make_mips(num_problems, num_constraints, num_variables, pure, output_path):
     if num_problems == 1:
         make_mip(num_constraints, num_variables, pure, output_path)
     else:
         for i in range(0, num_problems):
-            basename = ('ip' if pure else 'mip') + '-' + str(i) + '.mps'
+            basename = ('ip' if pure else 'mip') + '-' + str(i) + '.lp'
             output_path_ = os.path.join(output_path, basename)
-            num_variables_ = random.randint(1, num_variables)
-            num_constraints_ = random.randint(1, num_constraints)
-            make_mip(num_constraints_, num_variables_, pure, output_path_)
+            num_variables_ = num_variables
+            num_constraints_ = num_constraints
+
+            problem_generated = False
+            while not problem_generated:
+                problem_generated = make_mip(num_constraints_, num_variables_, pure, output_path_)
 
 if __name__ == "__main__":
     description = 'Generate random feasible mixed-integer programs.'
