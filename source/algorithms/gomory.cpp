@@ -12,7 +12,7 @@ Gomory::Gomory(const rapidjson::Value& root) : BaseModel(root) {
 	use_lex = root["useLexicographic"].GetBool();
 	use_rounds = root["useRounds"].GetBool();
 	use_fgmi = root["useMixedCut"].GetBool();
-	use_purge = root["usePurging"].GetBool();
+	use_purging = root["usePurging"].GetBool();
 
 	// Set up the Gurobi environment variable.
 	grb_error = GRBloadenv(&env, "gurobi.log");
@@ -99,8 +99,6 @@ void Gomory::SetupModel(void) {
 	// Allocate arrays to be used with the lexicographic method.
 	original_obj_coeffs = (double*)malloc(num_vars*sizeof(double));
 	del_lex_constr_ids = (int*)malloc(num_vars*sizeof(int));
-	grb_error = GRBgetdblattrlist(model, GRB_DBL_ATTR_OBJ, num_vars,
-	                              cut_coeff_ids, original_obj_coeffs);
 
 	// If a variable is not continuous, make it continuous.
 	for (int j = 0, k = 0; j < num_vars; j++) {
@@ -114,6 +112,9 @@ void Gomory::SetupModel(void) {
 			int_var_ids[k++] = j;
 		}
 	}
+
+	grb_error = GRBgetdblattrlist(model, GRB_DBL_ATTR_OBJ, num_vars,
+	                              cut_coeff_ids, original_obj_coeffs);
 
 	// Correctly size the matrices and vectors required for cuts.
 	basis_size = num_vars;
@@ -208,6 +209,10 @@ int Gomory::AddPureCut(int cut_var_index) {
 }
 
 int Gomory::AddMixedCut(int cut_var_index) {
+	if (use_lex) {
+		LexSimplex();
+	}
+
 	for (int i = 0; i < basis_size; i++) {
 		r(i) = fmax(0.0, -floor(B_inv(i, cut_var_index)));
 	}
@@ -220,6 +225,7 @@ int Gomory::AddMixedCut(int cut_var_index) {
 
 	for (int i = 0; i < num_vars; i++) {
 		cut_coeff_vals[i] = a_beta_r(i);
+
 		if (i == cut_var_index) {
 			cut_coeff_vals[i] -= (y_bar_i - floor(y_bar_i) - 1.0);
 		}
@@ -228,6 +234,10 @@ int Gomory::AddMixedCut(int cut_var_index) {
 	double rhs = -((y_bar_i - floor(y_bar_i) - 1.0) * floor(y_bar_i) - c_beta_r);
 	grb_error = GRBaddconstr(model, num_vars, cut_coeff_ids, cut_coeff_vals,
 	                         GRB_LESS_EQUAL, rhs, NULL);
+
+	if (use_lex) {
+		grb_error = GRBoptimize(model);
+	}
 
 	// Return the number of cuts generated.
 	return 1;
@@ -276,7 +286,7 @@ int Gomory::PurgeCuts(void) {
 		double constraint_slack;
 		grb_error = GRBgetdblattrelement(model, "Slack", i, &constraint_slack);
 
-		if (constraint_slack > purge_epsilon) {
+		if (fabs(constraint_slack) > purge_epsilon) {
 			purge_cut_ids.push_back(i);
 		}
 	}
@@ -300,7 +310,7 @@ void Gomory::PrintStep(void) {
 }
 
 int Gomory::Step(void) {
-	if (objective_value != old_objective_value && use_purge) {
+	if (objective_value != old_objective_value && use_purging) {
 		PurgeCuts();
 		old_objective_value = objective_value;
 	}
@@ -311,7 +321,8 @@ int Gomory::Step(void) {
 		if (use_rounds) {
 			num_cuts += use_fgmi ? AddMixedRounds() : AddPureRounds();
 		} else {
-			int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
+			//int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
+			int cut_var_id = GetRandomIndex();
 			num_cuts += use_fgmi ? AddMixedCut(cut_var_id) : AddPureCut(cut_var_id);
 		}
 	} else {
@@ -319,7 +330,8 @@ int Gomory::Step(void) {
 		if (use_rounds) {
 			num_cuts += AddMixedRounds();
 		} else {
-			int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
+			//int cut_var_id = use_lex ? GetLexIndex() : GetRandomIndex();
+			int cut_var_id = GetRandomIndex();
 			num_cuts += AddMixedCut(cut_var_id);
 		}
 	}

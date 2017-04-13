@@ -38,7 +38,7 @@ protected:
 	bool use_lex;
 	bool use_rounds;
 	bool use_fgmi;
-	bool use_purge;
+	bool use_purging;
 	int max_cuts;
 
 	// Declare other required variables.
@@ -66,5 +66,4 @@ protected:
 	Eigen::VectorXd r;
 	Eigen::VectorXd c_beta;
 	Eigen::VectorXd a_beta_r;
-
 };
