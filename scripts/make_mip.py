@@ -34,11 +34,6 @@ def make_mip(num_constraints, num_variables, pure, output_path):
     model = grb.Model(os.path.basename(output_path))
     model.setParam('OutputFlag', False)
 
-    # Set the possible variable types.
-    var_types = [grb.GRB.INTEGER]
-    if not pure:
-       var_types.append(grb.GRB.CONTINUOUS)
-
     var_list = []
     obj = grb.LinExpr()
     for j in range(0, num_variables):
@@ -56,13 +51,18 @@ def make_mip(num_constraints, num_variables, pure, output_path):
         model.addConstr(lhs, grb.GRB.LESS_EQUAL, c[i])
 
     # Solve the continuous relaxation.
-    model.setParam("TimeLimit", 1)
+    model.setParam("TimeLimit", 5)
     model.optimize()
 
     # If the problem is trivial, stop.
     for j, var in enumerate(var_list):
         if (var.X).is_integer():
             return False
+
+    # Set the possible variable types.
+    var_types = [grb.GRB.INTEGER]
+    if not pure:
+       var_types.append(grb.GRB.CONTINUOUS)
 
     for var in var_list:
         var_type = random.choice(var_types)
@@ -76,7 +76,7 @@ def make_mip(num_constraints, num_variables, pure, output_path):
         return False # Problem generation failed.
     else:
         model.write(output_path)
-        print(output_path)
+        print("Wrote '" + output_path + "'")
         return True # Problem generation succeeded.
 
 def make_mips(num_problems, num_constraints, num_variables, pure, output_path):
