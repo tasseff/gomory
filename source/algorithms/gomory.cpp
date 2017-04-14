@@ -51,7 +51,7 @@ void Gomory::Optimize(void) {
 
 	if (model_status != 2 && model_status != 5) {
 		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
-		std::exit(model_status);
+		std::exit(0);
 	}
 }
 
