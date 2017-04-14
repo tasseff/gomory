@@ -69,7 +69,7 @@ void Gomory::LexSimplex(void) {
 	for (int j = 1; j < num_vars; j++) {
 		for (int k = 0; k < num_vars; k++) {
 			if (k == j) {
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, -1.0);
 			} else {
 				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
 			}
