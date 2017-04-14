@@ -49,27 +49,31 @@ void Gomory::Optimize(void) {
 	int model_status;
 	grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &model_status);
 
-	if (model_status != 2) {
+	if (model_status != 2 && model_status != 5) {
 		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
 		std::exit(model_status);
 	}
 }
 
+template <typename T> int sgn(T val) {
+	return (T(0) < val) - (val < T(0));
+}
+
 void Gomory::LexSimplex(void) {
 	grb_error = GRBgetintattr(model, "NumConstrs", &num_constrs);
 
-	double sol_i;
-	grb_error = GRBgetdblattrelement(model, "X", 0, &sol_i);
+	double sol_j;
+	grb_error = GRBgetdblattrelement(model, "X", 0, &sol_j);
 
 	int id[1] = {0};
 	double vid[1] = {1.0};
-	grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_i, NULL);
+	grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_j, NULL);
 	del_lex_constr_ids[0] = num_constrs;
 
 	for (int j = 1; j < num_vars; j++) {
 		for (int k = 0; k < num_vars; k++) {
 			if (k == j) {
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_obj_coeffs[j]);
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
 			} else {
 				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
 			}
@@ -80,7 +84,6 @@ void Gomory::LexSimplex(void) {
 		int id[1] = {j};
 		double vid[1] = {1.0};
 
-		double sol_j;
 		grb_error = GRBgetdblattrelement(model, "X", j, &sol_j);
 		grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_j, NULL);
 		del_lex_constr_ids[j] = num_constrs + j;
