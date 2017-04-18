@@ -50,7 +50,7 @@ void Gomory::Optimize(void) {
 	grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &model_status);
 
 	// If the model timed out, exit.
-	if (model_status == 9) {
+	if (model_status != 2) {
 		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
 		std::exit(0);
 	}
@@ -68,15 +68,19 @@ void Gomory::LexSimplex(void) {
 
 	int id[1] = {0};
 	double vid[1] = {1.0};
-	grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_j, NULL);
+
+	grb_error = GRBaddconstr(model, 1, id, vid, GRB_GREATER_EQUAL, sol_j - 1.0e-8, NULL);
+	grb_error = GRBaddconstr(model, 1, id, vid, GRB_LESS_EQUAL, sol_j + 1.0e-8, NULL);
+
 	del_lex_constr_ids[0] = num_constrs;
+	del_lex_constr_ids[1] = num_constrs + 1;
 
 	for (int j = 1; j < num_vars; j++) {
 		for (int k = 0; k < num_vars; k++) {
-			if (k == j) {
-				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 1.0);
-			} else {
+			if (k < j) {
 				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, 0.0);
+			} else {
+				grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, k, original_obj_coeffs[k]);
 			}
 		}
 
@@ -86,18 +90,22 @@ void Gomory::LexSimplex(void) {
 		double vid[1] = {1.0};
 
 		grb_error = GRBgetdblattrelement(model, "X", j, &sol_j);
-		grb_error = GRBaddconstr(model, 1, id, vid, GRB_EQUAL, sol_j, NULL);
-		del_lex_constr_ids[j] = num_constrs + j;
+		grb_error = GRBaddconstr(model, 1, id, vid, GRB_GREATER_EQUAL, sol_j - 1.0e-8, NULL);
+		grb_error = GRBaddconstr(model, 1, id, vid, GRB_LESS_EQUAL, sol_j + 1.0e-8, NULL);
+
+		del_lex_constr_ids[2*j+0] = num_constrs + 2*j + 0;
+		del_lex_constr_ids[2*j+1] = num_constrs + 2*j + 1;
 	}
 
 	Optimize();
 
 	// Restore the objective to that of the original problem.
+	grb_error = GRBdelconstrs(model, 2*num_vars, del_lex_constr_ids);
+
 	for (int j = 0; j < num_vars; j++) {
 		grb_error = GRBsetdblattrelement(model, GRB_DBL_ATTR_OBJ, j, original_obj_coeffs[j]);
 	}
 
-	grb_error = GRBdelconstrs(model, num_vars, del_lex_constr_ids);
 	Optimize();
 }
 
@@ -117,7 +125,7 @@ void Gomory::SetupModel(void) {
 	cut_coeff_vals = (double*)malloc(num_vars*sizeof(double));
 
 	// Allocate arrays to be used with the lexicographic method.
-	del_lex_constr_ids = (int*)malloc(num_vars*sizeof(int));
+	del_lex_constr_ids = (int*)malloc(2*num_vars*sizeof(int));
 	original_obj_coeffs = (double*)malloc(num_vars*sizeof(double));
 
 	// If a variable is not continuous, make it continuous.
@@ -197,6 +205,7 @@ void Gomory::UpdateBasisData(void) {
 int Gomory::AddPureCut(int cut_var_index) {
 	if (use_lex) {
 		LexSimplex();
+		UpdateBasisData();
 	}
 
 	// Compute r.
@@ -231,6 +240,7 @@ int Gomory::AddPureCut(int cut_var_index) {
 int Gomory::AddMixedCut(int cut_var_index) {
 	if (use_lex) {
 		LexSimplex();
+		UpdateBasisData();
 	}
 
 	for (int i = 0; i < basis_size; i++) {
