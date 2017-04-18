@@ -49,9 +49,10 @@ void Gomory::Optimize(void) {
 	int model_status;
 	grb_error = GRBgetintattr(model, GRB_INT_ATTR_STATUS, &model_status);
 
-	if (model_status != 2 && model_status != 5) {
+	// If the model timed out, exit.
+	if (model_status == 9) {
 		std::cout << INT_MAX << "," << INT_MAX << "," << INT_MAX << "," << INT_MAX << std::endl;
-		std::exit(model_status);
+		std::exit(0);
 	}
 }
 
