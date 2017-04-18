@@ -86,7 +86,7 @@ def process_results(output_path, result_files, actual_objective, results_store,
         if method not in results_store["num_solved"].keys():
             results_store["num_solved"][method] = 0
         if stats[-1] == True : results_store["num_solved"][method] += 1
-        if num_cuts < 10000:
+        if num_cuts < 10000 and stats[-1] == True:
             results_store["num_cuts"][method].append(num_cuts)
         last_lines.append(stats)
     for i, path in enumerate(result_files):
@@ -109,6 +109,8 @@ def run_gurobi(file_path):
 
 
 def run_gomory(input_path, output_path, use_mixed_on_pure):
+    print(input_path)
+    print(output_path)
     rc = subprocess.check_call(["./RUN.sh", input_path, output_path])
     if use_mixed_on_pure:
         rc = subprocess.check_call(["./RUN_MIXED.sh", input_path, output_path])
