@@ -15,7 +15,7 @@ import make_mip
 __author__ = "Byron Tasseff, Connor Riley"
 __credits__ = ["Byron Tasseff", "Connor Riley"]
 __license__ = "MIT"
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 __maintainer__ = "Connor Riley"
 __email__ = ""
 __status__ = "Development"
@@ -46,7 +46,7 @@ def main(input_folder, output_folder, use_mixed_on_pure):
     write_results_store(results_store, output_path, num_vars)
     return 0
 
-# TODO: finish this -- this runs, need to get average cuts
+
 def write_results_store(results_store, folder, num_vars):
     for method in results_store["num_cuts"]:
         a = results_store["num_cuts"][method]
@@ -81,14 +81,25 @@ def process_results(output_path, result_files, actual_objective, results_store,
             "purging_mixed", "rounds_purging_mixed", "lex_rounds_mixed", 
             "lex_purging_mixed", "lex_rounds_purging_mixed"])
     for i, method in enumerate(methods):
-        stats = get_stats(output_path + "/" + method + ".txt", actual_objective)
+        stats = get_stats(output_path + "/" + method + ".txt", actual_objective, True)
         num_cuts = int(stats[0])
         if method not in results_store["num_solved"].keys():
             results_store["num_solved"][method] = 0
         if stats[-1] == True : results_store["num_solved"][method] += 1
+        gap = None
         if num_cuts < 10000 and stats[-1] == True:
             results_store["num_cuts"][method].append(num_cuts)
-        last_lines.append(stats)
+            obj = float(stats[3])
+            gap = obj - actual_objective
+        else:
+            stats = get_stats(output_path + "/" + method + ".txt", actual_objective, False)
+            obj = float(stats[3])
+            gap = obj - actual_objective
+        statsnew = []
+        for el in stats:
+            statsnew.append(el)
+        statsnew.append(gap)
+        last_lines.append(statsnew)
     for i, path in enumerate(result_files):
         write_data_line(path, last_lines[i], j)
     return 0
@@ -117,7 +128,7 @@ def run_gomory(input_path, output_path, use_mixed_on_pure):
     return 0
 
 
-def get_stats(filepath, actual_objective):
+def get_stats(filepath, actual_objective, b):
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
     max_det = 0
@@ -127,8 +138,11 @@ def get_stats(filepath, actual_objective):
         split_line = line.split(",")
         det = split_line[2]
         if abs(float(det)) > max_det:
-            max_det = abs(float(det)) 
-    last_line_split = lines[-1].split(",")
+            max_det = abs(float(det))
+    if b:
+        last_line_split = lines[-1].split(",")
+    else:
+        last_line_split = lines[-2].split(",")
     obj = last_line_split[3]
     num_cuts = last_line_split[0]
     num_constr = last_line_split[1]
@@ -191,14 +205,15 @@ def initialize_results_files(input_folder, output_folder, use_mixed_on_pure):
 def create_results_files(file_array):
     for fn in file_array:
         f = open(fn, 'w')
-        f.write('problem_num, num_cuts,num_constr,det,obj,solved\n')
+        f.write('problem_num, num_cuts,num_constr,det,obj,solved,gap\n')
         f.close()
     return 0
 
 
 def write_data_line(filepath, line, j):
     line_to_write = str(str(j) + "," + line[0]) + ","  + str(line[1]) + "," + str(
-            line[2]) + "," + str(line[3] + "," + str(line[4]))+ "\n"
+            line[2]) + "," + str(line[3]) + "," + str(line[4])+ "," + str(
+            line[5]) + "\n"
     f = open(filepath, 'a')
     f.write(line_to_write)
     f.close()
