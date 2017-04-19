@@ -166,10 +166,11 @@ def get_stats(filepath, actual_objective, b, gurobi_failed):
 def test_for_solution(num_cuts, obj, actual_objective, gurobi_failed):
     print("Actual Objective: " + str(actual_objective))
     print("Num Cuts: " + str(num_cuts))
+    if (gurobi_failed and type(num_cuts) == type("c") or 
+        gurobi_failed and int(num_cuts) < 2499):
+        return True
     test = abs(float(obj) - float(actual_objective))
     if test < .00001 and int(num_cuts) < 2499:
-        return True
-    if gurobi_failed and int(num_cuts) < 2499:
         return True
     return False
 
