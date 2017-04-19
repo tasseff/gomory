@@ -1,7 +1,7 @@
 import sys
 
 def main(folder, mixed):
-    if mixed == 0:
+    if int(mixed) == 0:
         mixed = False
     types = ["naive", "rounds", "purging", "lex", "rounds_purging",
         "lex_rounds", "lex_purging", "lex_rounds_purging"]
