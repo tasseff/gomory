@@ -11,7 +11,7 @@ def main(folder, mixed):
         "bar_graph_lex_rounds.csv",             
         "bar_graph_lex_purging.csv",     
         "bar_graph_lex_rounds_purging.csv"]
-    print_lines(folder, file_list)
+    pure_list = get_lines(folder, file_list)
     
     if mixed:
         file_list = ["bar_graph_naive_mixed.csv",                  
@@ -22,7 +22,7 @@ def main(folder, mixed):
         "bar_graph_lex_rounds_mixed.csv",             
         "bar_graph_lex_purging_mixed.csv",     
         "bar_graph_lex_rounds_purging_mixed.csv"]
-        print_lines(folder, file_list)
+        mixed_list = get_lines(folder, file_list)
     
     cuts_file = folder + "/" + "avg_cuts.csv"
     with open(cuts_file) as f:
@@ -33,25 +33,35 @@ def main(folder, mixed):
             continue
         linesplit = line.split(",")
         d[linesplit[0]] = float(linesplit[1].rstrip())
-    print_avg_cuts(d, types)
+    pure_cuts_list = get_avg_cuts(d, types)
     
     if mixed:
         types = ["naive_mixed", "rounds_mixed", "purging_mixed", "lex_mixed", 
         "rounds_purging_mixed", "lex_rounds_mixed", "lex_purging_mixed", 
         "lex_rounds_purging_mixed"]
-    print_avg_cuts(d, types)
+        mixed_cuts_list = get_avg_cuts(d, types)
+    print_pure = []
+    for i, el in enumerate(pure_list):
+        print_pure.append(el)
+        print_pure.append(pure_cuts_list[i])
+    print(print_pure)
+    if mixed:
+        mixed_list = []
+        for i, el in enumerate(mixed_list):
+            print_mixed.append(el)
+            print_mixed.append(pure_cuts_list[i])
+        print(print_mixed)
     return 0
 
 
-def print_avg_cuts(d, types):
+def get_avg_cuts(d, types):
     avg_cuts = []
     for t in types:
         avg_cuts.append(d[t])
-    print(avg_cuts)
-    return 0
+    return avg_cuts)
 
 
-def print_lines(folder, file_list):     
+def get_lines(folder, file_list):     
     solved_list = []
     for name in file_list:
 	fname = str(folder) + "/" + str(name)
@@ -59,10 +69,9 @@ def print_lines(folder, file_list):
             content = f.readlines()
         num = content[1].split(",")[1]
 	num = num.rstrip()
-	num = int(num)
+	num = int(num) + 1
 	solved_list.append(num)
-    print(solved_list)
-    return 0
+    return solved_list
 
 
 if __name__ == "__main__":
