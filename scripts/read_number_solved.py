@@ -1,6 +1,8 @@
 import sys
 
 def main(folder, mixed):
+    if mixed == 0:
+        mixed = False
     types = ["naive", "rounds", "purging", "lex", "rounds_purging",
         "lex_rounds", "lex_purging", "lex_rounds_purging"]
     file_list = ["bar_graph_naive.csv",                  
@@ -46,7 +48,7 @@ def main(folder, mixed):
         print_pure.append(pure_cuts_list[i])
     print(print_pure)
     if mixed:
-        mixed_list = []
+        print_mixed = []
         for i, el in enumerate(mixed_list):
             print_mixed.append(el)
             print_mixed.append(pure_cuts_list[i])
