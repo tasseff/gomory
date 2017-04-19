@@ -93,8 +93,6 @@ def process_results(output_path, result_files, actual_objective, results_store,
             obj = float(stats[3])
             gap = obj - actual_objective
         elif not gurobi_failed:
-            print(stats[3])
-            print(stats[-1])
             stats = get_stats(output_path + "/" + method + ".txt", 
                 actual_objective, False, gurobi_failed)
             obj = float(stats[3])
@@ -169,9 +167,9 @@ def test_for_solution(num_cuts, obj, actual_objective, gurobi_failed):
     print("Actual Objective: " + str(actual_objective))
     print("Num Cuts: " + str(num_cuts))
     test = abs(float(obj) - float(actual_objective))
-    if test < .00001 and int(num_cuts) < 2500:
+    if test < .00001 and int(num_cuts) < 2499:
         return True
-    if gurobi_failed and int(num_cuts) < 2500:
+    if gurobi_failed and int(num_cuts) < 2499:
         return True
     return False
 
