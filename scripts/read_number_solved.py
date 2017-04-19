@@ -74,7 +74,7 @@ def get_lines(folder, file_list):
             content = f.readlines()
         num = content[1].split(",")[1]
 	num = num.rstrip()
-	num = int(num) + 1
+	num = int(num)
 	solved_list.append(num)
     return solved_list
 
