@@ -59,7 +59,10 @@ def main(folder, mixed):
 def get_avg_cuts(d, types):
     avg_cuts = []
     for t in types:
-        avg_cuts.append(d[t])
+        if t in d.keys():
+            avg_cuts.append(d[t])
+        else:
+            avg_cuts.append(0)
     return avg_cuts
 
 
