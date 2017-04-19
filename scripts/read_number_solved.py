@@ -28,7 +28,9 @@ def main(folder, mixed):
     with open(cuts_file) as f:
         content = f.readlines()
     d = {}
-    for line in content:
+    for i, line in enumerate(content):
+        if i == 0:
+            continue
         linesplit = line.split(",")
         d[linesplit[0]] = float(linesplit[1].rstrip())
     print_avg_cuts(d, types)
@@ -49,7 +51,7 @@ def print_avg_cuts(d, types):
     return 0
 
 
-def print_lines(folder, file_list)      
+def print_lines(folder, file_list):     
     solved_list = []
     for name in file_list:
 	fname = str(folder) + "/" + str(name)
