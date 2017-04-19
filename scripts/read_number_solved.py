@@ -58,7 +58,7 @@ def get_avg_cuts(d, types):
     avg_cuts = []
     for t in types:
         avg_cuts.append(d[t])
-    return avg_cuts)
+    return avg_cuts
 
 
 def get_lines(folder, file_list):     
