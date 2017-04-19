@@ -36,13 +36,13 @@ def main(input_folder, output_folder, use_mixed_on_pure):
     onlyfiles = [f for f in os.listdir(input_folder) if os.path.isfile(os.path.join(input_folder, f))]
     for j, f in enumerate(onlyfiles):
         full_path = input_folder + "/" + f
-        (objective, num_vars) = run_gurobi(full_path)
+        (objective, num_vars, gurobi_failed) = run_gurobi(full_path)
         instance_output_path = make_output_path(output_path, f)
         if not os.path.exists(instance_output_path):
             os.makedirs(instance_output_path)
         run_gomory(full_path, instance_output_path, use_mixed_on_pure)
         process_results(instance_output_path, result_files, objective,
-            results_store, use_mixed_on_pure, j)
+            results_store, use_mixed_on_pure, j, gurobi_failed)
     write_results_store(results_store, output_path, num_vars)
     return 0
 
@@ -72,7 +72,7 @@ def write_average_cuts(avg, path, method):
 
 
 def process_results(output_path, result_files, actual_objective, results_store, 
-    use_mixed_on_pure, j):
+    use_mixed_on_pure, j, gurobi_failed):
     methods = ["naive", "lex", "rounds", "purging", "rounds_purging", 
     "lex_rounds", "lex_purging", "lex_rounds_purging"]
     last_lines = []
@@ -81,24 +81,31 @@ def process_results(output_path, result_files, actual_objective, results_store,
             "purging_mixed", "rounds_purging_mixed", "lex_rounds_mixed", 
             "lex_purging_mixed", "lex_rounds_purging_mixed"])
     for i, method in enumerate(methods):
-        stats = get_stats(output_path + "/" + method + ".txt", actual_objective, True)
+        stats = get_stats(output_path + "/" + method + ".txt", actual_objective, 
+            True, gurobi_failed)
         num_cuts = int(stats[0])
         if method not in results_store["num_solved"].keys():
             results_store["num_solved"][method] = 0
         if stats[-1] == True : results_store["num_solved"][method] += 1
         gap = None
-        if num_cuts < 10000 and stats[-1] == True:
+        if num_cuts < 10000 and stats[-1] == True and not gurobi_failed:
             results_store["num_cuts"][method].append(num_cuts)
             obj = float(stats[3])
             gap = obj - actual_objective
-        else:
-            stats = get_stats(output_path + "/" + method + ".txt", actual_objective, False)
+        elif not gurobi_failed:
+            stats = get_stats(output_path + "/" + method + ".txt", 
+                actual_objective, False, gurobi_failed)
             obj = float(stats[3])
             gap = obj - actual_objective
+        elif gurobi_failed:
+            results_store["num_cuts"][method].append(num_cuts)
+            obj = float(stats[3])
+            gap = 0
         statsnew = []
         for el in stats:
             statsnew.append(el)
         statsnew.append(gap)
+        statsnew.append(gurobi_failed)
         last_lines.append(statsnew)
     for i, path in enumerate(result_files):
         write_data_line(path, last_lines[i], j)
@@ -111,24 +118,29 @@ def make_output_path(output_path, file_name):
 
 
 def run_gurobi(file_path):
-    rc = subprocess.check_call(["gurobi_cl", "ResultFile=" + "gurobi_solution.sol", file_path])
+    fout = open("out.txt","w")
+    rc = subprocess.check_call(["gurobi_cl", "ResultFile=" + 
+        "gurobi_solution.sol", file_path], stdout=fout)
+    fout.close()
+    gurobi_failed = False
+    if ('Warning: cleanup yields a better optimal solution due to numeric instability' in open('out.txt').read() and 
+        '(model may be infeasible or unbounded - try turning presolve off)' in open('out.txt').read()):
+        gurobi_failed = True     
     with open("gurobi_solution.sol") as f:
         content = f.readlines()
     obj = content[0].split("=")[1]
     num_vars = len(content) - 1
-    return (float(obj), num_vars)
+    return (float(obj), num_vars, gurobi_failed)
 
 
 def run_gomory(input_path, output_path, use_mixed_on_pure):
-    print(input_path)
-    print(output_path)
     rc = subprocess.check_call(["./RUN.sh", input_path, output_path])
     if use_mixed_on_pure:
         rc = subprocess.check_call(["./RUN_MIXED.sh", input_path, output_path])
     return 0
 
 
-def get_stats(filepath, actual_objective, b):
+def get_stats(filepath, actual_objective, b, gurobi_failed):
     with open(filepath, "r") as f:
         lines = f.read().splitlines()
     max_det = 0
@@ -146,13 +158,16 @@ def get_stats(filepath, actual_objective, b):
     obj = last_line_split[3]
     num_cuts = last_line_split[0]
     num_constr = last_line_split[1]
-    achieved_solution = test_for_solution(num_cuts, obj, actual_objective)
+    achieved_solution = test_for_solution(num_cuts, obj, actual_objective, 
+        gurobi_failed)
     return(num_cuts, num_constr, max_det, obj, achieved_solution) 
 
 
-def test_for_solution(num_cuts, obj, actual_objective):
+def test_for_solution(num_cuts, obj, actual_objective, gurobi_failed):
     test = abs(float(obj) - float(actual_objective))
     if test < .0000001 and int(num_cuts) < 2500:
+        return True
+    if gurobi_failed and int(num_cuts) < 2500:
         return True
     return False
 
@@ -205,7 +220,7 @@ def initialize_results_files(input_folder, output_folder, use_mixed_on_pure):
 def create_results_files(file_array):
     for fn in file_array:
         f = open(fn, 'w')
-        f.write('problem_num, num_cuts,num_constr,det,obj,solved,gap\n')
+        f.write('problem_num, num_cuts,num_constr,det,obj,solved,gap,gurobi_failed\n')
         f.close()
     return 0
 
@@ -213,7 +228,7 @@ def create_results_files(file_array):
 def write_data_line(filepath, line, j):
     line_to_write = str(str(j) + "," + line[0]) + ","  + str(line[1]) + "," + str(
             line[2]) + "," + str(line[3]) + "," + str(line[4])+ "," + str(
-            line[5]) + "\n"
+            line[5]) + "," + str(line[6]) + "\n"
     f = open(filepath, 'a')
     f.write(line_to_write)
     f.close()
