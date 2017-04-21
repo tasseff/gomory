@@ -15,7 +15,7 @@ import make_mip
 __author__ = "Byron Tasseff, Connor Riley"
 __credits__ = ["Byron Tasseff", "Connor Riley"]
 __license__ = "MIT"
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 __maintainer__ = "Connor Riley"
 __email__ = ""
 __status__ = "Development"
@@ -212,7 +212,7 @@ def initialize_results_files(input_folder, output_folder, use_mixed_on_pure):
         path3 = output_path + "/results_rounds_mixed.csv"
         path4 = output_path + "/results_purging_mixed.csv"
         path5 = output_path + "/results_rounds_purging_mixed.csv"
-        path6 = output_path + "/results_lex_rounds.csv"
+        path6 = output_path + "/results_lex_rounds_mixed.csv"
         path7 = output_path + "/results_lex_purging_mixed.csv"
         path8 = output_path + "/results_lex_rounds_purging_mixed.csv" 
         filepaths.extend([path1, path2, path3, path4, path5, path6, path7, path8])
