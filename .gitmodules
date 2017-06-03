@@ -4,3 +4,6 @@
 [submodule "libraries/eigen"]
 	path = libraries/eigen
 	url = git@github.com:RLovelett/eigen.git
+[submodule "libraries/qsopt-ex"]
+	path = libraries/qsopt-ex
+	url = git@github.com:jonls/qsopt-ex.git
