@@ -29,27 +29,32 @@ find_path(GUROBI_INCLUDE_DIR
                   "/Library/gurobi502/mac64/include"
                   "/Library/gurobi562/mac64/include"
                   "/Library/gurobi652/mac64/include"
+                  "/Library/gurobi702/mac64/include"
                  "C:\\libs\\gurobi502\\include"
                  "C:\\libs\\gurobi562\\include"
                  "C:\\libs\\gurobi652\\include"
+                 "C:\\libs\\gurobi702\\include"
 				 "${GUROBI_BASE}/include"
           )
 
 find_library( GUROBI_LIBRARY 
               NAMES gurobi
-			        gurobi65
-			        gurobi60
-                    gurobi56
+			           gurobi70
+			           gurobi65
+			           gurobi60
+					     gurobi56
                     gurobi55
                     gurobi51
                     gurobi50 
-        		    gurobi46
-				    gurobi45
+        		        gurobi46
+				        gurobi45
 
               PATHS "$ENV{GUROBI_HOME}/lib" 
+                    "/Library/gurobi702/mac64/lib"
                     "/Library/gurobi652/mac64/lib"
                     "/Library/gurobi562/mac64/lib"
                     "/Library/gurobi502/mac64/lib"
+                    "C:\\libs\\gurobi702\\lib"
                     "C:\\libs\\gurobi652\\lib"
                     "C:\\libs\\gurobi562\\lib"
                     "C:\\libs\\gurobi502\\lib"
@@ -64,9 +69,11 @@ find_library( GUROBI_CXX_LIBRARY
               NAMES gurobi_c++ 
 			        ${GUROBI_LIB_NAME}
               PATHS "$ENV{GUROBI_HOME}/lib" 
+                    "/Library/gurobi702/mac64/lib"
                     "/Library/gurobi652/mac64/lib"
                     "/Library/gurobi562/mac64/lib"
                     "/Library/gurobi502/mac64/lib"
+                    "C:\\libs\\gurobi702\\lib"
                     "C:\\libs\\gurobi652\\lib"
                     "C:\\libs\\gurobi562\\lib"
                     "C:\\libs\\gurobi502\\lib"
