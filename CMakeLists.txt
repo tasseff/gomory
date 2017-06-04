@@ -26,11 +26,12 @@ if(QSOPT_EX_DIR)
 	ExternalProject_Add(
 		qsopt-ex
 		SOURCE_DIR "${QSOPT_EX_DIR}"
-		CONFIGURE_COMMAND ""
+		PATCH_COMMAND "./bootstrap"
+		CONFIGURE_COMMAND "./configure"
 		INSTALL_COMMAND ""
 		BUILD_IN_SOURCE 1
 		BUILD_COMMAND "make")
-	INCLUDE_DIRECTORIES("${QSOPT_EX_DIR}/src")
+	INCLUDE_DIRECTORIES("${QSOPT_EX_DIR}/qsopt_ex")
 else()
 	set(QSOPT_EX_FOUND FALSE)
 endif()
