@@ -20,21 +20,16 @@ FOREACH(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
 ENDFOREACH(OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES)
 
 set(QSOPT_EX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libraries/qsopt-ex")
-
-if(QSOPT_EX_DIR)
-	set(QSOPT_EX_FOUND TRUE)
-	ExternalProject_Add(
-		qsopt-ex
-		SOURCE_DIR "${QSOPT_EX_DIR}"
-		PATCH_COMMAND "./bootstrap"
-		CONFIGURE_COMMAND "./configure"
-		INSTALL_COMMAND ""
-		BUILD_IN_SOURCE 1
-		BUILD_COMMAND "make")
-	INCLUDE_DIRECTORIES("${QSOPT_EX_DIR}/qsopt_ex")
-else()
-	set(QSOPT_EX_FOUND FALSE)
-endif()
+ExternalProject_Add(
+	qsopt-ex
+	SOURCE_DIR "${QSOPT_EX_DIR}"
+	PATCH_COMMAND "./bootstrap"
+	CONFIGURE_COMMAND "./configure"
+	INSTALL_COMMAND ""
+	BUILD_IN_SOURCE 1
+	BUILD_COMMAND "make")
+INCLUDE_DIRECTORIES("${QSOPT_EX_DIR}")
+set(QSOPT_LIB "${CMAKE_CURRENT_SOURCE_DIR}/libraries/qsopt-ex/.libs/libqsopt_ex.a")
 
 INCLUDE_DIRECTORIES("libraries/rapidjson/include")
 INCLUDE_DIRECTORIES("libraries/eigen/")
